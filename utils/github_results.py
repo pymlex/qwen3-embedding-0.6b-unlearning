@@ -44,12 +44,14 @@ def refresh_training_figures(config: Config) -> None:
     plot_all_training_curves(config, gold_metrics, original_metrics, histories)
 
 
-def sync_results_artifacts(config: Config) -> tuple[list[Path], list[Path]]:
-    """Copy metric tables and figures into tracked results/ for GitHub."""
+def sync_results_artifacts(config: Config) -> tuple[list[Path], list[Path], list[Path]]:
+    """Copy metric tables, figures, and predictions into tracked results/ for GitHub."""
     metrics_dir = config.paths.results_metrics_dir
     figures_dir = config.paths.results_figures_dir
+    predictions_dir = config.paths.results_predictions_dir
     metrics_dir.mkdir(parents=True, exist_ok=True)
     figures_dir.mkdir(parents=True, exist_ok=True)
+    predictions_dir.mkdir(parents=True, exist_ok=True)
 
     synced_metrics: list[Path] = []
     for source_path in metric_csv_paths(config.paths.output_dir):
@@ -70,7 +72,14 @@ def sync_results_artifacts(config: Config) -> tuple[list[Path], list[Path]]:
         shutil.copy2(token_histogram, target_path)
         synced_figures.append(target_path)
 
-    return synced_metrics, synced_figures
+    synced_predictions: list[Path] = []
+    if config.paths.predictions_dir.exists():
+        for source_path in sorted(config.paths.predictions_dir.glob("*.csv")):
+            target_path = predictions_dir / source_path.name
+            shutil.copy2(source_path, target_path)
+            synced_predictions.append(target_path)
+
+    return synced_metrics, synced_figures, synced_predictions
 
 
 def git_push_with_token() -> None:
@@ -96,6 +105,37 @@ def git_push_with_token() -> None:
     subprocess.run(["git", "push", "origin", branch], check=True)
 
 
+def refresh_confusion_figures(config: Config, figures_dir: Path | None = None) -> None:
+    import shutil
+
+    import pandas as pd
+
+    from training.trainer import select_best_unlearning_method
+    from utils.predictions_io import predictions_source_dir, replot_confusion_matrices
+
+    source_dir = predictions_source_dir(config)
+    if not (source_dir / "manifest.csv").exists():
+        return
+    target_dir = figures_dir or config.paths.figures_dir
+    replot_confusion_matrices(config, predictions_dir=source_dir, figures_dir=target_dir)
+
+    summary_path = config.paths.output_dir / "final_evaluation.csv"
+    if not summary_path.exists():
+        summary_path = config.paths.results_metrics_dir / "final_evaluation.csv"
+    if not summary_path.exists():
+        return
+    summary_df = pd.read_csv(summary_path)
+    gold_retain_mcc = float(summary_df.loc[summary_df["method"] == "gold", "model_retain_mcc"].iloc[0])
+    unlearning_only = summary_df[~summary_df["method"].isin(["gold", "original"])].copy()
+    if len(unlearning_only) == 0:
+        return
+    best_method = select_best_unlearning_method(unlearning_only, gold_retain_mcc)
+    best_source = target_dir / f"confusion_unlearn_{best_method}.png"
+    best_target = target_dir / "confusion_best_unlearn.png"
+    if best_source.exists():
+        shutil.copy2(best_source, best_target)
+
+
 def push_results_to_github(
     config: Config,
     commit_message: str = "Update experiment metrics and figures",
@@ -104,10 +144,11 @@ def push_results_to_github(
     """Sync non-checkpoint artifacts to results/ and push them to GitHub."""
     if refresh_figures:
         refresh_training_figures(config)
+        refresh_confusion_figures(config)
 
-    synced_metrics, synced_figures = sync_results_artifacts(config)
-    if len(synced_metrics) == 0 and len(synced_figures) == 0:
-        print("no metric CSV or figure files found under outputs/")
+    synced_metrics, synced_figures, synced_predictions = sync_results_artifacts(config)
+    if len(synced_metrics) == 0 and len(synced_figures) == 0 and len(synced_predictions) == 0:
+        print("no metric CSV, figure, or prediction files found under outputs/")
         return
 
     subprocess.run(["git", "add", str(config.paths.results_dir)], check=True)
@@ -124,6 +165,7 @@ def push_results_to_github(
     subprocess.run(["git", "commit", "-m", commit_message], check=True)
     git_push_with_token()
     print(
-        f"pushed {len(synced_metrics)} metric tables and "
-        f"{len(synced_figures)} figures to GitHub"
+        f"pushed {len(synced_metrics)} metric tables, "
+        f"{len(synced_figures)} figures, and "
+        f"{len(synced_predictions)} prediction files to GitHub"
     )

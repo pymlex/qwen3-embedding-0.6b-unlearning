@@ -28,7 +28,6 @@ def plot_confusion_matrix(
     axis.set_xlabel("Predicted")
     axis.set_ylabel("True")
     axis.set_title(title)
-    axis.grid(alpha=0.5)
     figure.tight_layout()
     save_path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(save_path, dpi=150)

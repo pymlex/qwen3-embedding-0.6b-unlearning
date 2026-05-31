@@ -191,7 +191,8 @@ qwen3-embedding-0.6b-unlearning/
     └── github_results.py
 results/
 ├── metrics/
-└── figures/
+├── figures/
+└── predictions/
 ```
 
 ## Colab Pro Setup and Commands
@@ -240,10 +241,16 @@ Single unlearning method:
 python main.py unlearn --method rmu
 ```
 
-Test MCC, unlearning metrics, confusion matrices:
+Test MCC, unlearning metrics, confusion matrices, saved predictions:
 
 ```bash
 python main.py evaluate
+```
+
+Rebuild confusion matrices from saved predictions without model inference:
+
+```bash
+python main.py replot-confusion
 ```
 
 Checkpoint upload to Hugging Face:
@@ -252,7 +259,7 @@ Checkpoint upload to Hugging Face:
 python main.py push-hf
 ```
 
-Metric tables and figures to GitHub repository `results/`:
+Metric tables, figures, and predictions to GitHub repository `results/`:
 
 ```bash
 python main.py push-github
@@ -264,7 +271,7 @@ Full workflow:
 python main.py run-all
 ```
 
-MLflow tracking: `mlruns/`. Checkpoints and splits: `outputs/`. Published metrics and figures: `results/`.
+MLflow tracking: `mlruns/`. Checkpoints and splits: `outputs/`. Published metrics, figures, and predictions: `results/`.
 
 ## Results
 

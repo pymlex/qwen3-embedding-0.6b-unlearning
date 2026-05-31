@@ -376,8 +376,10 @@ def evaluate_test_and_plot(
     figure_path = config.paths.figures_dir / f"confusion_{model_name}.png"
     if num_classes == config.model.num_classes:
         label_names = [ID2LABEL[index] for index in range(num_classes)]
+        split_name = "test"
     else:
         label_names = list(RETAIN_CLASSES)
+        split_name = "retain_test"
     plot_confusion_matrix(
         confusion[0],
         confusion[1],
@@ -385,7 +387,18 @@ def evaluate_test_and_plot(
         title=f"Confusion matrix: {model_name}",
         save_path=figure_path,
     )
-    return {"test_mcc": evaluation["mcc"]}
+    from utils.predictions_io import save_test_predictions
+
+    prediction_row = save_test_predictions(
+        config,
+        model_name,
+        confusion[0],
+        confusion[1],
+        num_classes,
+        split_name,
+        label_names,
+    )
+    return {"test_mcc": evaluation["mcc"], "prediction_row": prediction_row}
 
 
 def select_best_unlearning_method(summary_df: pd.DataFrame, gold_retain_mcc: float) -> str:

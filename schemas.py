@@ -51,6 +51,8 @@ class PathConfig(BaseModel):
     results_dir: Path = Path("results")
     results_metrics_dir: Path = Path("results/metrics")
     results_figures_dir: Path = Path("results/figures")
+    results_predictions_dir: Path = Path("results/predictions")
+    predictions_dir: Path = Path("outputs/predictions")
     splits_dir: Path = Path("outputs/splits")
     token_stats_path: Path = Path("dataset_token_stats.json")
     mlflow_experiment: str = "qwen3-embedding-unlearning"

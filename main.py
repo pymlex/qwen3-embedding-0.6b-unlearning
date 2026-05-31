@@ -30,6 +30,11 @@ def parse_args() -> argparse.Namespace:
 
     subparsers.add_parser("evaluate", help="Evaluate all checkpoints and build confusion matrices")
 
+    subparsers.add_parser(
+        "replot-confusion",
+        help="Rebuild confusion matrix figures from saved predictions without model inference",
+    )
+
     push_parser = subparsers.add_parser("push-hf", help="Upload checkpoints to Hugging Face Hub")
     push_parser.add_argument("--token", default=None)
 
@@ -166,10 +171,13 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
     from metrics.evaluation import evaluate_unlearning_metrics
     from models.classifier import QwenEmbeddingClassifier
     from training.trainer import evaluate_test_and_plot, select_best_unlearning_method
+    from utils.predictions_io import write_predictions_manifest
 
     config.paths.figures_dir.mkdir(parents=True, exist_ok=True)
+    config.paths.predictions_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     summary_rows = []
+    prediction_rows = []
     forget_class_id = LABEL2ID[config.data.forget_class]
 
     gold_model = QwenEmbeddingClassifier.load_pretrained(
@@ -198,6 +206,7 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
         ).to(device)
         model.eval()
         test_metrics = evaluate_test_and_plot(config, model, test_df, model_name, num_classes)
+        prediction_rows.append(test_metrics.pop("prediction_row"))
         unlearning_metrics = evaluate_unlearning_metrics(
             model,
             gold_model,
@@ -235,6 +244,7 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
                 f"unlearn_{method_dir.name}",
                 config.model.num_classes,
             )
+            prediction_rows.append(test_metrics.pop("prediction_row"))
             unlearning_metrics = evaluate_unlearning_metrics(
                 model,
                 gold_model,
@@ -261,9 +271,24 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
         if best_source.exists():
             shutil.copy(best_source, best_target)
 
+    write_predictions_manifest(config, prediction_rows)
     summary_df.to_csv(config.paths.output_dir / "final_evaluation.csv", index=False)
     print(summary_df.to_string(index=False, float_format=lambda value: f"{value:.4f}"))
     return summary_df
+
+
+def command_replot_confusion(config) -> None:
+    from utils.github_results import refresh_confusion_figures
+    from utils.predictions_io import predictions_source_dir
+
+    source_dir = predictions_source_dir(config)
+    target_dir = (
+        config.paths.results_figures_dir
+        if source_dir == config.paths.results_predictions_dir
+        else config.paths.figures_dir
+    )
+    refresh_confusion_figures(config, figures_dir=target_dir)
+    print(f"rebuilt confusion matrices from {source_dir} into {target_dir}")
 
 
 def main() -> None:
@@ -304,6 +329,10 @@ def main() -> None:
 
     if args.command == "evaluate":
         command_evaluate(config, splits)
+        return
+
+    if args.command == "replot-confusion":
+        command_replot_confusion(config)
         return
 
     if args.command == "push-hf":
