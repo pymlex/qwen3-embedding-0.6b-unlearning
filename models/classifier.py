@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from pathlib import Path
 from torch import Tensor
 from transformers import AutoModel, AutoTokenizer
 
@@ -54,7 +55,7 @@ class QwenEmbeddingClassifier(nn.Module):
         batch = {key: value.to(device) for key, value in batch.items()}
         outputs = self.encoder(**batch)
         embeddings = last_token_pool(outputs.last_hidden_state, batch["attention_mask"])
-        return embeddings
+        return embeddings.float()
 
     def forward(self, texts: list[str], device: torch.device) -> Tensor:
         embeddings = self.encode_texts(texts, device)
