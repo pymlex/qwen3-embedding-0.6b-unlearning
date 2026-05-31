@@ -13,7 +13,7 @@ class DataConfig(BaseModel):
     csv_path: Path = Path("women_clothing_accessories.csv")
     test_per_class: int = 1000
     valid_per_class: int = 1000
-    train_per_class: int = 15000
+    train_per_class: int = 8000
     forget_class: str = "neutral"
     seed: int = 42
 
