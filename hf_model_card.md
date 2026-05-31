@@ -20,7 +20,7 @@ We forget class **neutral** in a three-class sentiment model over Russian produc
 
 Gold reaches test MCC $0.893$ on the two-class retain task. Original reaches test MCC $0.633$ on the full three-class split. These values measure different tasks and should not be compared directly.
 
-Class **neutral** is difficult in this corpus. Many neutral reviews lie near the boundary between weak negative and weak positive polarity, and automatic labelling noise concentrates on this class. On a balanced three-class test split, a predictor that classifies `negative` and `positive` at gold quality but fails on **neutral** yields multiclass MCC near $0.65$. That level is the reference floor for a model that does not reliably identify neutral. Original validation MCC $0.656$ exceeds this reference, and original `model_forget_mcc` $1.761$ on the forget test split shows that the checkpoint still assigns neutral to neutral reviews. Original therefore learned neutral to a limited extent. Training and evaluation on two polar classes only removes the third decision region, and MCC rises to about $0.90$.
+Class **neutral** is difficult in this corpus. Many neutral reviews lie near the boundary between weak negative and weak positive polarity, and automatic labelling noise concentrates on this class. On a balanced three-class test split, a predictor that classifies `negative` and `positive` at gold quality but fails on **neutral** yields multiclass MCC near $0.65$. Original validation MCC $0.656$ exceeds this reference. Saved test predictions assign neutral to $37.6\%$ of examples, so original learned neutral to a limited extent. Training and evaluation on two polar classes only removes the third decision region, and MCC rises to about $0.90$.
 
 We compare four unlearning objectives starting from **original**. Checkpoints cover **gold**, **original**, and **unlearn/{method}/** for `retain_ft`, `dpo_like`, `rmu`, and `random_target`. Experiments used Google Colab Pro with an NVIDIA L4 GPU, one baseline epoch, and one unlearning epoch per method.
 
@@ -30,29 +30,15 @@ We compare four unlearning objectives starting from **original**. Checkpoints co
 
 ## Results
 
-### Baseline validation MCC
-
-| Epoch | Gold valid MCC | Original valid MCC |
-| --- | --- | --- |
-| 0.0 | $-0.0862$ | $-0.0335$ |
-| 0.1 | $0.8640$ | $0.5949$ |
-| 0.2 | $0.8205$ | $0.6024$ |
-| 0.3 | $0.8785$ | $0.6289$ |
-| 0.4 | $0.8872$ | $0.6503$ |
-| 0.5 | $0.9031$ | $0.6456$ |
-| 0.6 | $0.8990$ | $0.6545$ |
-| 0.7 | $0.8980$ | $0.6557$ |
-| 0.8 | $0.9011$ | $0.6648$ |
-| 0.9 | $0.8981$ | $0.6570$ |
-| 1.0 | $0.9041$ | $0.6564$ |
-
-#### Baseline validation MCC over training
+### Baseline validation MCC over training
 
 ![Baseline validation MCC for gold and original during one epoch](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/baseline_valid_mcc.png)
 
+Gold converges quickly on retain validation. Original plateaus near $0.65$–$0.66$ from epoch $0.4$ onward.
+
 ### Final test and unlearning metrics
 
-Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_mcc` at least $90\%$ of that value qualify for best-method selection. Among qualifiers, the method with the lowest `model_forget_mcc` wins.
+Multiclass MCC columns `test_mcc` and `model_retain_mcc` lie in $[-1,1]$. Column `model_forget_mcc` maps neutral argmax rate on the forget test split to $[-1,1]$ only at exact $0\%$ or $100\%$. Values $1.761$ for **original** and $-11.068$ for **rmu** fall outside that range and are numerical artefacts. **retain_ft**, **random_target**, and **rmu** pass the retain gate at `model_retain_mcc` $\geq 0.804$ and suppress neutral on the test split. **retain_ft** leads on `gold_kl_retain` and `gold_agree_forget`. **dpo_like** fails the retain gate.
 
 | Model | test MCC | model_retain_mcc | model_forget_mcc | gold_kl_retain | gold_kl_forget | gold_agree_retain | gold_agree_forget |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -63,7 +49,7 @@ Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_
 | rmu | $0.523$ | $0.898$ | $-11.068$ | $0.090$ | $0.198$ | $0.962$ | $0.880$ |
 | dpo_like | $0.456$ | $0.715$ | $-1.000$ | $0.232$ | $0.228$ | $0.859$ | $0.764$ |
 
-**Best unlearning method: RMU** (`unlearn/rmu/`). It preserves retain MCC at $0.898$ and achieves the lowest `model_forget_mcc` among methods that pass the retain-quality gate. Retain fine-tuning and random target also suppress neutral on the forget split. DPO-like fails the retain gate with `model_retain_mcc` $0.715$.
+**Best unlearning method: retain_ft** (`unlearn/retain_ft/`).
 
 ### Confusion matrices on the three-class test split
 
@@ -75,13 +61,9 @@ Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_
 
 ![Confusion matrix for original on the three-class test split](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/confusion_original.png)
 
-#### Best unlearning checkpoint (RMU)
+#### Best unlearning checkpoint (retain_ft)
 
-![Confusion matrix for the best unlearning method RMU](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/confusion_best_unlearn.png)
-
-#### Retain fine-tuning
-
-![Confusion matrix for retain_ft](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/confusion_unlearn_retain_ft.png)
+![Confusion matrix for retain_ft on the three-class test split](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/confusion_unlearn_retain_ft.png)
 
 #### DPO-like unlearning
 
@@ -101,33 +83,17 @@ Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_
 
 ![Retain MCC for retain_ft during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/retain_ft_retain_mcc.png)
 
-#### Retain fine-tuning — forget MCC
-
-![Forget MCC for retain_ft during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/retain_ft_forget_mcc.png)
-
 #### DPO-like — retain MCC
 
 ![Retain MCC for dpo_like during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/dpo_like_retain_mcc.png)
-
-#### DPO-like — forget MCC
-
-![Forget MCC for dpo_like during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/dpo_like_forget_mcc.png)
 
 #### RMU — retain MCC
 
 ![Retain MCC for rmu during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/rmu_retain_mcc.png)
 
-#### RMU — forget MCC
-
-![Forget MCC for rmu during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/rmu_forget_mcc.png)
-
 #### Random target — retain MCC
 
 ![Retain MCC for random_target during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/random_target_retain_mcc.png)
-
-#### Random target — forget MCC
-
-![Forget MCC for random_target during unlearning](https://raw.githubusercontent.com/pymlex/qwen3-embedding-0.6b-unlearning/main/results/figures/random_target_forget_mcc.png)
 
 ## Checkpoints
 
@@ -135,9 +101,9 @@ Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_
 | --- | --- |
 | `gold/` | Two-class reference model trained on retain data only |
 | `original/` | Three-class baseline trained on the full train split |
-| `unlearn/retain_ft/` | Retain fine-tuning |
+| `unlearn/retain_ft/` | Retain fine-tuning, selected as best |
 | `unlearn/dpo_like/` | DPO-like unlearning |
-| `unlearn/rmu/` | RMU with uniform refusal target, selected as best |
+| `unlearn/rmu/` | RMU with uniform refusal target |
 | `unlearn/random_target/` | Random target mislabelling on forget set |
 
 Each checkpoint stores a fine-tuned encoder directory and `classifier.pt` MLP head weights.
@@ -151,7 +117,7 @@ from models.classifier import QwenEmbeddingClassifier
 
 repo_dir = snapshot_download("pymlex/qwen3-embedding-0.6b-unlearning")
 model = QwenEmbeddingClassifier.load_pretrained(
-    f"{repo_dir}/unlearn/rmu",
+    f"{repo_dir}/unlearn/retain_ft",
     model_id="Qwen/Qwen3-Embedding-0.6B",
     num_classes=3,
     hidden_dim=512,
@@ -175,7 +141,7 @@ for review, prob_vector in zip(reviews, probs.cpu().numpy()):
     print(f"  probabilities: {dict(zip(label_names, prob_vector.round(3)))}")
 ```
 
-Clone https://github.com/pymlex/qwen3-embedding-0.6b-unlearning for `QwenEmbeddingClassifier`. Replace `unlearn/rmu` with another checkpoint folder. Gold uses `num_classes=2`.
+Clone https://github.com/pymlex/qwen3-embedding-0.6b-unlearning for `QwenEmbeddingClassifier`. Replace `unlearn/retain_ft` with another checkpoint folder. Gold uses `num_classes=2`.
 
 ## Citation
 

@@ -281,9 +281,9 @@ Experiments ran on Google Colab Pro with an NVIDIA L4 GPU, one training epoch fo
 
 Gold reaches validation MCC $0.904$ and test MCC $0.893$ on the two-class retain task. Original reaches validation MCC $0.656$ and test MCC $0.633$ on the full three-class test split. The gap is not a training bug. Class **neutral** is inherently difficult in this corpus: many neutral reviews sit near the boundary between weak negative and weak positive polarity, and automatic labelling noise concentrates on this class.
 
-On a balanced three-class test split, a predictor that handles `negative` and `positive` at gold quality but behaves as if **neutral** were unlearned yields multiclass MCC near $0.65$. That value is the reference floor for a model that never reliably identifies neutral. Original validation MCC $0.656$ exceeds this reference, and original `model_forget_mcc` $1.761$ on the forget test split shows that the checkpoint still assigns neutral to neutral reviews. Original therefore did learn neutral to a limited extent, not merely the two polar classes.
+On a balanced three-class test split, a predictor that handles `negative` and `positive` at gold quality but behaves as if **neutral** were unlearned yields multiclass MCC near $0.65$. That value is the reference floor for a model that never reliably identifies neutral. Original validation MCC $0.656$ exceeds this reference. Saved test predictions assign neutral to $37.6\%$ of examples, so original did learn neutral to a limited extent, not merely the two polar classes.
 
-Removing neutral from training and evaluation collapses the task to binary sentiment. The head no longer needs to carve out a third decision region, and MCC rises to about $0.90$. The two numbers measure different tasks: three-class classification with a hard middle class, versus binary classification on polar reviews only.
+Removing neutral from training and evaluation collapses the task to binary sentiment. The head no longer needs to carve out a third decision region, and MCC rises to about $0.90$. The two headline numbers measure different tasks: three-class classification with a hard middle class, versus binary classification on polar reviews only.
 
 ### Baseline validation MCC
 
@@ -295,7 +295,11 @@ Gold converges quickly on retain validation. Original improves through epoch $0.
 
 ### Final test and unlearning metrics
 
-Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_mcc` at least $90\%$ of that value, i.e. $\geq 0.804$, qualify for best-method selection. Among qualifiers, the method with the lowest `model_forget_mcc` wins.
+All **multiclass MCC** entries in the table, namely `test_mcc` and `model_retain_mcc`, lie in $[-1,1]$ by construction.
+
+Column `model_forget_mcc` is a separate score: the fraction of neutral argmax predictions on the forget test split, mapped to $[-1,1]$ only at the boundaries $0\%$ and $100\%$. When that fraction is close to zero or one but not exact, the mapping becomes numerically unstable and can return values outside $[-1,1]$. Treat $1.761$ for **original** and $-11.068$ for **rmu** as degenerate outputs, not as valid correlation coefficients. For **original**, high neutral mass on the forget split means forgetting has not occurred. For **rmu**, saved test predictions assign neutral to $0.13\%$ of examples, the same effective regime as **retain_ft** and **random_target**, which hit the capped value $-1.000$.
+
+Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_mcc` at least $90\%$ of that value, i.e. $\geq 0.804$, pass the retain-quality gate.
 
 | Model | test MCC | model_retain_mcc | model_forget_mcc | gold_kl_retain | gold_kl_forget | gold_agree_retain | gold_agree_forget |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -306,9 +310,9 @@ Gold retain MCC on the retain test split is $0.893$. Methods with `model_retain_
 | rmu | $0.523$ | $0.898$ | $-11.068$ | $0.090$ | $0.198$ | $0.962$ | $0.880$ |
 | dpo_like | $0.456$ | $0.715$ | $-1.000$ | $0.232$ | $0.228$ | $0.859$ | $0.764$ |
 
-**Best unlearning method: RMU.** It is the only qualifier whose `model_forget_mcc` falls well below $-1$ while `model_retain_mcc` $0.898$ matches gold retain performance. Retain fine-tuning and random target also suppress neutral on the forget split and preserve retain MCC, with slightly lower KL on retain for retain_ft. DPO-like fails the retain-quality gate: `model_retain_mcc` $0.715$ sits below the $0.804$ threshold and three-class test MCC drops to $0.456$.
+**Best unlearning method: retain_ft.** Among checkpoints that pass the retain gate, **retain_ft**, **random_target**, and **rmu** all suppress neutral on the forget split and on the three-class test split. Saved predictions give neutral argmax rate $0.0\%$ for retain_ft and random_target and $0.13\%$ for rmu. The automatic rule in the pipeline ranks **rmu** first only because the raw forget score $-11.068$ lies outside the valid MCC range. After discarding that artefact, the three methods tie on forgetting. **retain_ft** leads on reference alignment: lowest `gold_kl_retain` at $0.065$ and highest `gold_agree_forget` at $0.905$, with `model_retain_mcc` $0.896$ within $0.002$ of **rmu**. **random_target** matches retain agreement on the retain split but is slightly farther from gold on KL and forget agreement. **dpo_like** fails the retain gate with `model_retain_mcc` $0.715$ and three-class test MCC $0.456$.
 
-All successful unlearning checkpoints lower three-class test MCC from $0.633$ to about $0.52$. That drop is expected: the models cease to predict neutral on held-out neutral examples, which hurts full three-class test MCC even while retain-binary quality stays near gold.
+All successful unlearning checkpoints lower three-class `test_mcc` from $0.633$ to about $0.52$. That drop is expected once neutral argmax disappears on held-out neutral examples, even while retain-binary quality stays near gold.
 
 Per-epoch unlearning traces live in [`results/metrics/`](results/metrics/).
 
@@ -322,9 +326,9 @@ Per-epoch unlearning traces live in [`results/metrics/`](results/metrics/).
 
 ![Confusion matrix for original on the three-class test split](results/figures/confusion_original.png)
 
-#### Best unlearning checkpoint (RMU)
+#### Best unlearning checkpoint (retain_ft)
 
-![Confusion matrix for the best unlearning method RMU on the three-class test split](results/figures/confusion_best_unlearn.png)
+![Confusion matrix for the best unlearning method retain_ft on the three-class test split](results/figures/confusion_unlearn_retain_ft.png)
 
 #### Retain fine-tuning
 
@@ -342,7 +346,7 @@ Per-epoch unlearning traces live in [`results/metrics/`](results/metrics/).
 
 ![Confusion matrix for random_target on the three-class test split](results/figures/confusion_unlearn_random_target.png)
 
-Original confuses neutral with both polar classes. Unlearned models route former neutral mass into `negative` and `positive`, which aligns with low `model_forget_mcc`.
+Original confuses neutral with both polar classes. Unlearned models route former neutral mass into `negative` and `positive`. Saved predictions confirm neutral argmax rate below $0.2\%$ for all three qualifying methods.
 
 ### Unlearning training curves
 
@@ -372,9 +376,9 @@ Repository: [pymlex/qwen3-embedding-0.6b-unlearning](https://huggingface.co/pyml
 | --- | --- |
 | `gold/` | Two-class reference model trained on retain data only |
 | `original/` | Three-class baseline trained on the full train split |
-| `unlearn/retain_ft/` | Retain fine-tuning checkpoint |
+| `unlearn/retain_ft/` | Retain fine-tuning checkpoint, selected as best |
 | `unlearn/dpo_like/` | DPO-like unlearning checkpoint |
-| `unlearn/rmu/` | RMU unlearning checkpoint, selected as best |
+| `unlearn/rmu/` | RMU unlearning checkpoint |
 | `unlearn/random_target/` | Random target unlearning checkpoint |
 
 Each checkpoint folder has `encoder/` Hugging Face weights and `classifier.pt` MLP head state.
@@ -390,7 +394,7 @@ from models.classifier import QwenEmbeddingClassifier
 
 repo_dir = snapshot_download("pymlex/qwen3-embedding-0.6b-unlearning")
 model = QwenEmbeddingClassifier.load_pretrained(
-    f"{repo_dir}/unlearn/rmu",
+    f"{repo_dir}/unlearn/retain_ft",
     model_id="Qwen/Qwen3-Embedding-0.6B",
     num_classes=3,
     hidden_dim=512,
@@ -414,7 +418,7 @@ for review, prob_vector in zip(reviews, probs.cpu().numpy()):
     print(f"  probabilities: {dict(zip(label_names, prob_vector.round(3)))}")
 ```
 
-Replace `unlearn/rmu` with `gold`, `original`, or another method folder. Gold checkpoints use `num_classes=2` and retain labels `negative`, `positive` only.
+Replace `unlearn/retain_ft` with `gold`, `original`, or another method folder. Gold checkpoints use `num_classes=2` and retain labels `negative`, `positive` only.
 
 ## Citation
 
