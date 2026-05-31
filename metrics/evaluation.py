@@ -44,9 +44,9 @@ def retain_probs_from_three_class(model_probs: np.ndarray) -> np.ndarray:
 
 
 def retain_probs_from_model(model_probs: np.ndarray) -> np.ndarray:
-    if model_probs.shape[1] == len(RETAIN_FULL_LABEL_IDS):
-        return retain_probs_from_three_class(model_probs)
-    return model_probs / model_probs.sum(axis=1, keepdims=True)
+    if model_probs.shape[1] == 2:
+        return model_probs / model_probs.sum(axis=1, keepdims=True)
+    return retain_probs_from_three_class(model_probs)
 
 
 def predictions_to_full_three_class(y_pred: np.ndarray, model_num_classes: int) -> np.ndarray:
