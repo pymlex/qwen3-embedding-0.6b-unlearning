@@ -38,12 +38,26 @@ def _parameter_groups(model: QwenEmbeddingClassifier, config: Config) -> list[di
     ]
 
 
-def _eval_steps_per_epoch(steps_per_epoch: int, eval_interval_epochs: float) -> int:
-    return max(1, int(steps_per_epoch * eval_interval_epochs))
+def _total_optimizer_steps(batches_per_epoch: int, gradient_accumulation_steps: int, epochs: float) -> int:
+    return max(1, int(epochs * batches_per_epoch / gradient_accumulation_steps))
 
 
-def _epoch_from_step(step: int, steps_per_epoch: int) -> float:
-    return step / steps_per_epoch
+def _eval_step_schedule(
+    total_optimizer_steps: int,
+    epochs: float,
+    eval_interval_epochs: float,
+) -> set[int]:
+    steps_per_epoch = total_optimizer_steps / epochs
+    schedule = {total_optimizer_steps}
+    eval_epoch = eval_interval_epochs
+    while eval_epoch <= epochs + 1e-9:
+        schedule.add(min(total_optimizer_steps, max(1, int(round(eval_epoch * steps_per_epoch)))))
+        eval_epoch += eval_interval_epochs
+    return schedule
+
+
+def _epoch_at_optimizer_step(global_step: int, total_optimizer_steps: int, epochs: float) -> float:
+    return global_step * epochs / total_optimizer_steps
 
 
 def _collect_baseline_metrics(
@@ -78,22 +92,29 @@ def train_baseline_model(
         _parameter_groups(model, config),
         weight_decay=config.train.weight_decay,
     )
-    total_steps = int(len(train_loader) * config.train.epochs / config.train.gradient_accumulation_steps)
-    warmup_steps = int(total_steps * config.train.warmup_ratio)
+    batches_per_epoch = len(train_loader)
+    total_optimizer_steps = _total_optimizer_steps(
+        batches_per_epoch,
+        config.train.gradient_accumulation_steps,
+        config.train.epochs,
+    )
+    warmup_steps = int(total_optimizer_steps * config.train.warmup_ratio)
+    eval_steps = _eval_step_schedule(
+        total_optimizer_steps,
+        config.train.epochs,
+        config.train.eval_interval_epochs,
+    )
 
     def lr_lambda(current_step: int) -> float:
         if current_step < warmup_steps:
             return float(current_step) / float(max(1, warmup_steps))
-        progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+        progress = float(current_step - warmup_steps) / float(max(1, total_optimizer_steps - warmup_steps))
         return max(0.0, 0.5 * (1.0 + np.cos(np.pi * progress)))
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     metric_rows = []
     global_step = 0
-    steps_per_epoch = len(train_loader)
-    eval_every = _eval_steps_per_epoch(steps_per_epoch, config.train.eval_interval_epochs)
-    total_optimizer_steps = int(config.train.epochs * steps_per_epoch / config.train.gradient_accumulation_steps)
 
     with start_run(config, run_name):
         epoch_zero_metrics = _collect_baseline_metrics(model, splits, config, device)
@@ -119,8 +140,12 @@ def train_baseline_model(
                 global_step += 1
                 progress.update(1)
 
-                if global_step % eval_every == 0 or global_step == total_optimizer_steps:
-                    current_epoch = _epoch_from_step(global_step * config.train.gradient_accumulation_steps, steps_per_epoch)
+                if global_step in eval_steps:
+                    current_epoch = _epoch_at_optimizer_step(
+                        global_step,
+                        total_optimizer_steps,
+                        config.train.epochs,
+                    )
                     metrics = _collect_baseline_metrics(model, splits, config, device)
                     metrics["epoch"] = current_epoch
                     metrics["train_loss"] = float(loss.item() * config.train.gradient_accumulation_steps)
@@ -187,9 +212,17 @@ def run_unlearning_method(
 
     metric_rows = []
     global_step = 0
-    steps_per_epoch = len(pair_loader)
-    total_optimizer_steps = int(config.train.unlearning_epochs * steps_per_epoch / config.train.gradient_accumulation_steps)
-    eval_every = _eval_steps_per_epoch(steps_per_epoch, config.train.eval_interval_epochs)
+    batches_per_epoch = len(pair_loader)
+    total_optimizer_steps = _total_optimizer_steps(
+        batches_per_epoch,
+        config.train.gradient_accumulation_steps,
+        config.train.unlearning_epochs,
+    )
+    eval_steps = _eval_step_schedule(
+        total_optimizer_steps,
+        config.train.unlearning_epochs,
+        config.train.eval_interval_epochs,
+    )
 
     with start_run(config, f"unlearn_{method}"):
         epoch_zero = evaluate_unlearning_metrics(
@@ -271,10 +304,11 @@ def run_unlearning_method(
                 global_step += 1
                 progress.update(1)
 
-                if global_step % eval_every == 0 or global_step == total_optimizer_steps:
-                    current_epoch = _epoch_from_step(
-                        global_step * config.train.gradient_accumulation_steps,
-                        steps_per_epoch,
+                if global_step in eval_steps:
+                    current_epoch = _epoch_at_optimizer_step(
+                        global_step,
+                        total_optimizer_steps,
+                        config.train.unlearning_epochs,
                     )
                     metrics = evaluate_unlearning_metrics(
                         model,
