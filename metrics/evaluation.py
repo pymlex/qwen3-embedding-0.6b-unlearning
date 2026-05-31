@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from sklearn.metrics import confusion_matrix, matthews_corrcoef
 
-from constants import GOLD_LABEL_TO_FULL, RETAIN_FULL_LABEL_IDS
+from constants import GOLD_LABEL_TO_FULL, LABEL2ID, RETAIN_FULL_LABEL_IDS, RETAIN_LABEL2ID
 
 
 def multiclass_mcc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -41,6 +41,28 @@ def batch_predict_probs(
 def retain_probs_from_three_class(model_probs: np.ndarray) -> np.ndarray:
     subset = model_probs[:, RETAIN_FULL_LABEL_IDS]
     return subset / subset.sum(axis=1, keepdims=True)
+
+
+def retain_probs_from_model(model_probs: np.ndarray) -> np.ndarray:
+    if model_probs.shape[1] == len(RETAIN_FULL_LABEL_IDS):
+        return retain_probs_from_three_class(model_probs)
+    return model_probs / model_probs.sum(axis=1, keepdims=True)
+
+
+def predictions_to_full_three_class(y_pred: np.ndarray, model_num_classes: int) -> np.ndarray:
+    if model_num_classes == 2:
+        return gold_predictions_to_full(y_pred)
+    return y_pred
+
+
+def retain_labels_for_model(retain_labels: list[int], model_num_classes: int) -> list[int]:
+    if model_num_classes == 2:
+        full_to_retain = {
+            LABEL2ID["negative"]: RETAIN_LABEL2ID["negative"],
+            LABEL2ID["positive"]: RETAIN_LABEL2ID["positive"],
+        }
+        return [full_to_retain[label] for label in retain_labels]
+    return retain_labels
 
 
 def gold_predictions_to_full(gold_predictions: np.ndarray) -> np.ndarray:
@@ -114,15 +136,18 @@ def evaluate_unlearning_metrics(
     batch_size: int,
     forget_class_id: int,
     num_classes: int,
+    model_num_classes: int,
 ) -> dict[str, float]:
-    retain_eval = evaluate_split(model, retain_texts, retain_labels, device, batch_size)
+    retain_labels_eval = retain_labels_for_model(retain_labels, model_num_classes)
+    retain_eval = evaluate_split(model, retain_texts, retain_labels_eval, device, batch_size)
     forget_preds = batch_predict(model, forget_texts, device, batch_size)
-    forget_mcc = forget_class_mcc(forget_preds, forget_class_id, num_classes)
+    forget_preds_full = predictions_to_full_three_class(forget_preds, model_num_classes)
+    forget_mcc = forget_class_mcc(forget_preds_full, forget_class_id, num_classes)
 
-    retain_probs_model = retain_probs_from_three_class(
+    retain_probs_model = retain_probs_from_model(
         batch_predict_probs(model, retain_texts, device, batch_size)
     )
-    forget_probs_model = retain_probs_from_three_class(
+    forget_probs_model = retain_probs_from_model(
         batch_predict_probs(model, forget_texts, device, batch_size)
     )
     retain_probs_gold = batch_predict_probs(gold_model, retain_texts, device, batch_size)
@@ -134,12 +159,13 @@ def evaluate_unlearning_metrics(
     forget_pred_gold = gold_predictions_to_full(
         batch_predict(gold_model, forget_texts, device, batch_size)
     )
+    retain_preds_full = predictions_to_full_three_class(retain_eval["predictions"], model_num_classes)
 
     return {
         "model_retain_mcc": retain_eval["mcc"],
         "model_forget_mcc": forget_mcc,
         "gold_kl_retain": kl_divergence(retain_probs_gold, retain_probs_model),
         "gold_kl_forget": kl_divergence(forget_probs_gold, forget_probs_model),
-        "gold_agree_retain": agreement_rate(retain_eval["predictions"], retain_pred_gold),
-        "gold_agree_forget": agreement_rate(forget_preds, forget_pred_gold),
+        "gold_agree_retain": agreement_rate(retain_preds_full, retain_pred_gold),
+        "gold_agree_forget": agreement_rate(forget_preds_full, forget_pred_gold),
     }

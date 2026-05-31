@@ -196,6 +196,7 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
             config.train.batch_size,
             forget_class_id,
             config.model.num_classes,
+            num_classes,
         )
         row = {"method": model_name, **test_metrics, **unlearning_metrics}
         summary_rows.append(row)
@@ -231,6 +232,7 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
                 device,
                 config.train.batch_size,
                 forget_class_id,
+                config.model.num_classes,
                 config.model.num_classes,
             )
             summary_rows.append({"method": method_dir.name, **test_metrics, **unlearning_metrics})

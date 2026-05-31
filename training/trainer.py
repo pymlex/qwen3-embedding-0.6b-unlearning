@@ -250,6 +250,7 @@ def run_unlearning_method(
             config.train.batch_size,
             forget_class_id,
             config.model.num_classes,
+            config.model.num_classes,
         )
         epoch_zero["epoch"] = 0.0
         metric_rows.append(epoch_zero)
@@ -336,6 +337,7 @@ def run_unlearning_method(
                         device,
                         config.train.batch_size,
                         forget_class_id,
+                        config.model.num_classes,
                         config.model.num_classes,
                     )
                     metrics["epoch"] = current_epoch
