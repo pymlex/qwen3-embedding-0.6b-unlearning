@@ -27,8 +27,8 @@ class ModelConfig(BaseModel):
 
 class TrainConfig(BaseModel):
     epochs: float = 2.0
-    batch_size: int = 8
-    gradient_accumulation_steps: int = 4
+    batch_size: int = 16
+    gradient_accumulation_steps: int = 2
     learning_rate: float = 2e-5
     head_learning_rate: float = 1e-4
     weight_decay: float = 0.01
