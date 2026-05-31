@@ -47,7 +47,7 @@ model = QwenEmbeddingClassifier.load_pretrained(
     model_id="Qwen/Qwen3-Embedding-0.6B",
     num_classes=3,
     hidden_dim=512,
-    max_length=256,
+    max_length=128,
 )
 ```
 

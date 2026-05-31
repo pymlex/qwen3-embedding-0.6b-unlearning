@@ -13,6 +13,7 @@ class DataConfig(BaseModel):
     csv_path: Path = Path("women_clothing_accessories.csv")
     test_per_class: int = 1000
     valid_per_class: int = 1000
+    train_per_class: int = 15000
     forget_class: str = "neutral"
     seed: int = 42
 
@@ -21,22 +22,22 @@ class ModelConfig(BaseModel):
     base_model_id: str = "Qwen/Qwen3-Embedding-0.6B"
     num_classes: int = 3
     mlp_hidden_dim: int = 512
-    max_length: int = 256
+    max_length: int = 128
     embedding_dim: int = 1024
 
 
 class TrainConfig(BaseModel):
-    epochs: float = 2.0
-    batch_size: int = 16
-    gradient_accumulation_steps: int = 2
+    epochs: float = 1.0
+    batch_size: int = 8
+    gradient_accumulation_steps: int = 4
     learning_rate: float = 2e-5
     head_learning_rate: float = 1e-4
     weight_decay: float = 0.01
     warmup_ratio: float = 0.1
-    eval_interval_epochs: float = 0.5
+    eval_interval_epochs: float = 0.1
     unlearning_epochs: float = 1.0
     unlearning_learning_rate: float = 1e-5
-    dpo_beta: float = 0.1
+    dpo_beta: float = 1.0
     random_target_gamma: float = 0.7
     max_grad_norm: float = 1.0
 

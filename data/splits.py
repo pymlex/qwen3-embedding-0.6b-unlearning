@@ -17,6 +17,7 @@ def split_by_class(
     frame: pd.DataFrame,
     test_per_class: int,
     valid_per_class: int,
+    train_per_class: int,
     seed: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     train_parts = []
@@ -28,9 +29,11 @@ def split_by_class(
             frac=1.0,
             random_state=seed,
         )
+        train_start = test_per_class + valid_per_class
+        train_end = train_start + train_per_class
         test_parts.append(class_frame.iloc[:test_per_class])
-        valid_parts.append(class_frame.iloc[test_per_class : test_per_class + valid_per_class])
-        train_parts.append(class_frame.iloc[test_per_class + valid_per_class :])
+        valid_parts.append(class_frame.iloc[test_per_class : train_start])
+        train_parts.append(class_frame.iloc[train_start : train_end])
 
     train_df = pd.concat(train_parts, ignore_index=True).sample(frac=1.0, random_state=seed)
     valid_df = pd.concat(valid_parts, ignore_index=True).sample(frac=1.0, random_state=seed)
@@ -50,6 +53,7 @@ def prepare_splits(config: Config) -> dict[str, pd.DataFrame]:
         frame,
         config.data.test_per_class,
         config.data.valid_per_class,
+        config.data.train_per_class,
         config.data.seed,
     )
     retain_train_df, forget_train_df = build_retain_forget(train_df, config.data.forget_class)

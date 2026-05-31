@@ -20,7 +20,7 @@ We measure token lengths with the [Qwen/Qwen3-Embedding-0.6B](https://huggingfac
 | p99 | 240 |
 | Maximum | 838 |
 
-Corpus $p_{99}$ token length is 240. We fix the sequence budget at `max_length = 256`. Reviews longer than this are truncated in training and inference.
+Corpus $p_{99}$ token length is 240. We fix the sequence budget at `max_length = 128`. Reviews longer than this are truncated in training and inference.
 
 ![Review token length distribution](figures/token_length_distribution.png)
 
@@ -28,11 +28,11 @@ We hold out 1,000 test and 1,000 validation examples per class. All remaining ex
 
 | Split | Size per class | Total | Role |
 | --- | --- | --- | --- |
-| Train | 28,000 | 84,000 | Optimisation |
-| Valid | 1,000 | 3,000 | Baseline validation MCC every 0.5 epoch |
+| Train | 15,000 | 45,000 | Optimisation |
+| Valid | 1,000 | 3,000 | Baseline validation MCC every 0.1 epoch |
 | Test | 1,000 | 3,000 | Final evaluation and confusion matrices |
 
-After the class split, retain training has 56,000 reviews and forget training has 28,000 neutral reviews.
+After the class split, retain training has 30,000 reviews and forget training has 15,000 neutral reviews.
 
 ## Model Architecture
 
@@ -99,7 +99,7 @@ We train gold and original models for two epochs on the full three-class split w
 
 $$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\left[ -\log p_{\theta}(y \mid x) \right]$$
 
-We compute metrics at epoch $0$ before any gradient step and every $0.5$ epoch on validation. After training, we store gold weights as the reference model. Original weights are an identical copy used as the unlearning starting point.
+We compute metrics at epoch $0$ before any gradient step and every $0.1$ epoch on validation. After training, we store gold weights as the reference model. Original weights are an identical copy used as the unlearning starting point.
 
 $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{CE}}(\theta)$$
 
@@ -131,7 +131,7 @@ $$L_{\mathrm{DPO}}(\theta) = -\mathbb{E}\left[ \log \sigma(s_r - s_f) \right]$$
 
 $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{DPO}}(\theta)$$
 
-with $\beta = 0.1$.
+with $\beta = 1$.
 
 ### RMU with Uniform Refusal Target
 
@@ -214,7 +214,7 @@ Train, valid, test and retain or forget splits:
 python main.py prepare-data
 ```
 
-Gold and original models, two epochs, validation MCC at epoch 0, 0.5, 1.0, 1.5, 2.0:
+Gold and original models, one epoch, validation MCC at epoch 0, 0.1, 0.2, ..., 1.0:
 
 ```bash
 python main.py train-baseline
@@ -263,8 +263,6 @@ We fill the tables below after the Colab training run. Copy values from `outputs
 | 0.0 | pending | pending |
 | 0.5 | pending | pending |
 | 1.0 | pending | pending |
-| 1.5 | pending | pending |
-| 2.0 | pending | pending |
 
 ### Final test and unlearning metrics
 
