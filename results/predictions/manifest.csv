@@ -1,0 +1,7 @@
+model_name,num_classes,split,labels
+original,3,test,negative|neutral|positive
+gold,2,retain_test,negative|positive
+unlearn_dpo_like,3,test,negative|neutral|positive
+unlearn_random_target,3,test,negative|neutral|positive
+unlearn_retain_ft,3,test,negative|neutral|positive
+unlearn_rmu,3,test,negative|neutral|positive
