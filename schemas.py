@@ -3,11 +3,17 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 
+def load_max_length_from_stats(stats_path: Path = Path("dataset_token_stats.json")) -> int:
+    lines = stats_path.read_text(encoding="utf-8").strip().splitlines()
+    values = dict(line.split("=", maxsplit=1) for line in lines)
+    return int(float(values["max_length"]))
+
+
 class DataConfig(BaseModel):
     csv_path: Path = Path("women_clothing_accessories.csv")
     test_per_class: int = 1000
     valid_per_class: int = 1000
-    forget_class: str = "negative"
+    forget_class: str = "neutral"
     seed: int = 42
 
 
@@ -15,7 +21,7 @@ class ModelConfig(BaseModel):
     base_model_id: str = "Qwen/Qwen3-Embedding-0.6B"
     num_classes: int = 3
     mlp_hidden_dim: int = 512
-    max_length: int = 512
+    max_length: int = 240
     embedding_dim: int = 1024
 
 
@@ -39,7 +45,9 @@ class PathConfig(BaseModel):
     output_dir: Path = Path("outputs")
     checkpoints_dir: Path = Path("outputs/checkpoints")
     figures_dir: Path = Path("outputs/figures")
+    repo_figures_dir: Path = Path("figures")
     splits_dir: Path = Path("outputs/splits")
+    token_stats_path: Path = Path("dataset_token_stats.json")
     mlflow_experiment: str = "qwen3-embedding-unlearning"
     hf_repo_id: str = "pymlex/qwen3-embedding-0.6b-unlearning"
 
@@ -49,3 +57,7 @@ class Config(BaseModel):
     model: ModelConfig = Field(default_factory=ModelConfig)
     train: TrainConfig = Field(default_factory=TrainConfig)
     paths: PathConfig = Field(default_factory=PathConfig)
+
+    def apply_token_stats(self) -> None:
+        if self.paths.token_stats_path.exists():
+            self.model.max_length = load_max_length_from_stats(self.paths.token_stats_path)

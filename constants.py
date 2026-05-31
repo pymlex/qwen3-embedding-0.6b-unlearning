@@ -6,4 +6,4 @@ LABEL2ID = {
 
 ID2LABEL = {value: key for key, value in LABEL2ID.items()}
 
-RETAIN_CLASSES = ("positive", "neutral")
+RETAIN_CLASSES = ("positive", "negative")

@@ -13,6 +13,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Qwen3-Embedding machine unlearning pipeline")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    subparsers.add_parser("analyze-dataset", help="Convert CSV separator, compute p99 token length, plot histogram")
+
     subparsers.add_parser("prepare-data", help="Create train, valid, test and retain or forget splits")
 
     subparsers.add_parser("train-baseline", help="Train gold and original models for two epochs")
@@ -45,6 +47,32 @@ def load_splits(config) -> dict[str, pd.DataFrame]:
         "forget_test": config.paths.splits_dir / "forget_test.csv",
     }
     return {name: pd.read_csv(path) for name, path in split_files.items()}
+
+
+def command_analyze_dataset(config) -> dict[str, float | int]:
+    from data.token_stats import analyze_dataset, convert_tab_csv_to_comma, load_comma_csv
+
+    csv_path = config.data.csv_path
+    first_line = csv_path.read_text(encoding="utf-8").splitlines()[0]
+    if "\t" in first_line and first_line.count(",") == 0:
+        convert_tab_csv_to_comma(csv_path, csv_path)
+        print(f"converted {csv_path} to comma-separated format")
+    else:
+        load_comma_csv(csv_path)
+        print(f"{csv_path} already uses comma separator")
+
+    stats = analyze_dataset(
+        csv_path=csv_path,
+        model_id=config.model.base_model_id,
+        figures_dir=config.paths.repo_figures_dir,
+        stats_path=config.paths.token_stats_path,
+    )
+    config.apply_token_stats()
+    print(
+        f"p99={stats['p99_tokens']:.0f} max_length={stats['max_length']} "
+        f"mean={stats['mean_tokens']:.1f} median={stats['median_tokens']:.1f}"
+    )
+    return stats
 
 
 def command_prepare_data(config) -> dict[str, pd.DataFrame]:
@@ -189,7 +217,12 @@ def main() -> None:
 
     args = parse_args()
     config = Config()
+    config.apply_token_stats()
     config.paths.output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.command == "analyze-dataset":
+        command_analyze_dataset(config)
+        return
 
     if args.command == "prepare-data":
         command_prepare_data(config)
@@ -216,6 +249,7 @@ def main() -> None:
         return
 
     if args.command == "run-all":
+        command_analyze_dataset(config)
         splits = command_prepare_data(config)
         command_train_baseline(config, splits)
         histories = command_unlearn(config, splits, "all")

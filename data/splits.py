@@ -1,14 +1,13 @@
 from pathlib import Path
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
 from constants import LABEL2ID
 from schemas import Config
 
 
 def load_reviews(csv_path: Path) -> pd.DataFrame:
-    frame = pd.read_csv(csv_path, sep="\t", quoting=1)
+    frame = pd.read_csv(csv_path)
     frame = frame.rename(columns=str.strip)
     frame["label_id"] = frame["sentiment"].map(LABEL2ID)
     return frame
