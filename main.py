@@ -165,7 +165,8 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
         config.model.gold_num_classes,
         config.model.mlp_hidden_dim,
         config.model.max_length,
-    )
+    ).to(device)
+    gold_model.eval()
 
     from data.splits import frame_with_retain_labels
 
@@ -181,7 +182,8 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
             num_classes,
             config.model.mlp_hidden_dim,
             config.model.max_length,
-        )
+        ).to(device)
+        model.eval()
         test_metrics = evaluate_test_and_plot(config, model, test_df, model_name, num_classes)
         unlearning_metrics = evaluate_unlearning_metrics(
             model,
@@ -210,7 +212,8 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
                 config.model.num_classes,
                 config.model.mlp_hidden_dim,
                 config.model.max_length,
-            )
+            ).to(device)
+            model.eval()
             test_metrics = evaluate_test_and_plot(
                 config,
                 model,
