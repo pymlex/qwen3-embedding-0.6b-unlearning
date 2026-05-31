@@ -46,7 +46,13 @@ flowchart TB
     H --> L[logits over negative, neutral, positive]
 ```
 
-Let $x$ denote a review, $h_\phi(x) \in \mathbb{R}^{1024}$ the pooled embedding from the encoder with parameters $\phi$, and $g_\psi$ the MLP head with parameters $\psi$. The classifier logits are $f_\theta(x) = g_\psi(h_\phi(x))$ where $\theta = (\phi, \psi)$. Class probabilities are $p_\theta(y \mid x) = \mathrm{softmax}(f_\theta(x))_y$.
+Let $x$ denote a review, $h_{\phi}(x) \in \mathbb{R}^{1024}$ the pooled embedding from the encoder with parameters $\phi$, and $g_{\psi}$ the MLP head with parameters $\psi$. The classifier logits are
+
+$$f_{\theta}(x) = g_{\psi}\bigl(h_{\phi}(x)\bigr), \qquad \theta = (\phi, \psi).$$
+
+Class probabilities:
+
+$$p_{\theta}(y \mid x) = \mathrm{softmax}\bigl(f_{\theta}(x)\bigr)_{y}.$$
 
 ## Classification Metric
 
@@ -71,19 +77,19 @@ For each unlearned model with parameters $\theta$ and frozen gold model $\theta_
 
 Retain-set KL divergence against gold:
 
-$$\mathrm{gold\_kl\_retain} = \mathbb{E}_{x \sim D_r^{\mathrm{test}}} \mathrm{KL}\bigl(p_{\theta_g}(\cdot \mid x) \,\|\, p_\theta(\cdot \mid x)\bigr)$$
+$$\text{gold\_kl\_retain} = \mathbb{E}_{x \sim {D_r}^{\text{test}}} \operatorname{KL}\!\left(p_{\theta_g}(\cdot \mid x) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
 
 Forget-set KL divergence against gold:
 
-$$\mathrm{gold\_kl\_forget} = \mathbb{E}_{x \sim D_f^{\mathrm{test}}} \mathrm{KL}\bigl(p_{\theta_g}(\cdot \mid x) \,\|\, p_\theta(\cdot \mid x)\bigr)$$
+$$\text{gold\_kl\_forget} = \mathbb{E}_{x \sim {D_f}^{\text{test}}} \operatorname{KL}\!\left(p_{\theta_g}(\cdot \mid x) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
 
 Retain-set prediction agreement with gold:
 
-$$\mathrm{gold\_agree\_retain} = \mathbb{E}_{x \sim D_r^{\mathrm{test}}} \mathbf{1}\bigl[\arg\max p_\theta = \arg\max p_{\theta_g}\bigr]$$
+$$\text{gold\_agree\_retain} = \mathbb{E}_{x \sim {D_r}^{\text{test}}} \mathbf{1}\!\left[\arg\max_{y} p_{\theta}(y \mid x) = \arg\max_{y} p_{\theta_g}(y \mid x)\right]$$
 
 Forget-set prediction agreement with gold:
 
-$$\mathrm{gold\_agree\_forget} = \mathbb{E}_{x \sim D_f^{\mathrm{test}}} \mathbf{1}\bigl[\arg\max p_\theta = \arg\max p_{\theta_g}\bigr]$$
+$$\text{gold\_agree\_forget} = \mathbb{E}_{x \sim {D_f}^{\text{test}}} \mathbf{1}\!\left[\arg\max_{y} p_{\theta}(y \mid x) = \arg\max_{y} p_{\theta_g}(y \mid x)\right]$$
 
 Confusion matrices are saved for **gold**, **original**, and the **best unlearning** checkpoint selected by lowest `model_forget_mcc` among methods with `model_retain_mcc` at least 90% of gold retain MCC.
 
@@ -91,49 +97,65 @@ Confusion matrices are saved for **gold**, **original**, and the **best unlearni
 
 Both gold and original models are trained for two epochs on the full three-class training split with cross-entropy loss:
 
-$$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\bigl[-\log p_\theta(y \mid x)\bigr]$$
+$$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\bigl[-\log p_{\theta}(y \mid x)\bigr]$$
 
 Metrics are computed at epoch $0$ before any gradient step and every $0.5$ epoch on the validation split. After training, gold weights are stored as the reference model. Original weights are an identical copy used as the starting point for unlearning.
 
-Update rule:
-
-$$\theta \leftarrow \theta - \eta \nabla_\theta L_{\mathrm{CE}}(\theta)$$
+$$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{CE}}(\theta)$$
 
 ## Unlearning Methods
 
-Let $\ell_{\mathrm{CE}}(x,y;\theta) = -\log p_\theta(y \mid x)$ and $\theta_0$ denote the original checkpoint.
+Cross-entropy on a labelled example:
+
+$$\ell_{\mathrm{CE}}(x,y;\theta) = -\log p_{\theta}(y \mid x).$$
+
+The original checkpoint is denoted by $\theta_0$.
 
 ### Retain Fine-Tuning
 
-$$L_{\mathrm{retain}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}[\ell_{\mathrm{CE}}(x,y;\theta)], \qquad \theta \leftarrow \theta - \eta \nabla_\theta L_{\mathrm{retain}}(\theta).$$
+$$L_{\mathrm{retain}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\bigl[\ell_{\mathrm{CE}}(x,y;\theta)\bigr]$$
+
+$$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{retain}}(\theta)$$
 
 ### DPO-like
 
-Score for labelled example $(x,y)$: $s_\theta(x,y) = \beta\left(\log p_\theta(y \mid x) - \log p_{\theta_0}(y \mid x)\right)$.
+Score for labelled example $(x,y)$:
 
-For retain pair $(x_r, y_r)$ and forget pair $(x_f, y_f)$: $s_r = s_\theta(x_r, y_r)$ and $s_f = s_\theta(x_f, y_f)$.
+$$s_{\theta}(x,y) = \beta\left(\log p_{\theta}(y \mid x) - \log p_{\theta_0}(y \mid x)\right)$$
 
-$$L_{\mathrm{DPO}}(\theta) = -\mathbb{E}[\log \sigma(s_r - s_f)], \qquad \theta \leftarrow \theta - \eta \nabla_\theta L_{\mathrm{DPO}}(\theta),$$
+For retain pair $(x_r, y_r)$ and forget pair $(x_f, y_f)$:
+
+$$s_r = s_{\theta}(x_r, y_r), \qquad s_f = s_{\theta}(x_f, y_f)$$
+
+$$L_{\mathrm{DPO}}(\theta) = -\mathbb{E}\bigl[\log \sigma(s_r - s_f)\bigr]$$
+
+$$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{DPO}}(\theta)$$
 
 with $\beta = 0.1$.
 
 ### RMU with Uniform Refusal Target
 
-Uniform refusal distribution over $K=3$ classes: $u(y) = 1/K$.
+Uniform refusal distribution over $K=3$ classes:
 
-$$L_{\mathrm{retain}}^{\mathrm{RMU}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}[\ell_{\mathrm{CE}}(x,y;\theta)] + 0.5\,\mathbb{E}_{x\sim D_r}[\mathrm{KL}(p_{\theta_0}(\cdot \mid x) \| p_\theta(\cdot \mid x))].$$
+$$u(y) = \frac{1}{K}$$
 
-$$L_{\mathrm{refusal}}(\theta) = \mathbb{E}_{x\sim D_f}[\mathrm{KL}(u(\cdot) \| p_\theta(\cdot \mid x))].$$
+$$L_{\mathrm{retain}}^{\mathrm{RMU}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\bigl[\ell_{\mathrm{CE}}(x,y;\theta)\bigr] + 0.5\,\mathbb{E}_{x\sim D_r}\operatorname{KL}\!\left(p_{\theta_0}(\cdot \mid x) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
 
-$$L_{\mathrm{RMU}}(\theta) = L_{\mathrm{retain}}^{\mathrm{RMU}}(\theta) + L_{\mathrm{refusal}}(\theta), \qquad \theta \leftarrow \theta - \eta \nabla_\theta L_{\mathrm{RMU}}(\theta).$$
+$$L_{\mathrm{refusal}}(\theta) = \mathbb{E}_{x\sim D_f}\operatorname{KL}\!\left(u(\cdot) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
+
+$$L_{\mathrm{RMU}}(\theta) = L_{\mathrm{retain}}^{\mathrm{RMU}}(\theta) + L_{\mathrm{refusal}}(\theta)$$
+
+$$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{RMU}}(\theta)$$
 
 ### Random Target
 
-Sample $\tilde{y} \sim \mathrm{Uniform}(Y_{\mathrm{retain}})$ where $Y_{\mathrm{retain}} = \{\mathrm{positive}, \mathrm{negative}\}$.
+Sample $\tilde{y} \sim \mathrm{Uniform}(Y_{\mathrm{retain}})$ where $Y_{\mathrm{retain}} = \{\text{positive}, \text{negative}\}$.
 
-$$L_{\mathrm{random}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}[\ell_{\mathrm{CE}}(x,y;\theta)] + \gamma\,\mathbb{E}_{x\sim D_f,\, \tilde y \sim \mathrm{Uniform}(Y_{\mathrm{retain}})}[\ell_{\mathrm{CE}}(x,\tilde y;\theta)], \qquad \gamma = 0.7.$$
+$$L_{\mathrm{random}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\bigl[\ell_{\mathrm{CE}}(x,y;\theta)\bigr] + \gamma\,\mathbb{E}_{x\sim D_f,\, \tilde{y} \sim \mathrm{Uniform}(Y_{\mathrm{retain}})}\bigl[\ell_{\mathrm{CE}}(x,\tilde{y};\theta)\bigr]$$
 
-Update rule: $\theta \leftarrow \theta - \eta \nabla_\theta L_{\mathrm{random}}(\theta)$.
+with $\gamma = 0.7$.
+
+$$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{random}}(\theta)$$
 
 ## Project Layout
 
