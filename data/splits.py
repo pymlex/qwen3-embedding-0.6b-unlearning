@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from constants import LABEL2ID
+from constants import LABEL2ID, RETAIN_CLASSES, RETAIN_LABEL2ID
 from schemas import Config
 
 
@@ -45,6 +45,12 @@ def build_retain_forget(train_df: pd.DataFrame, forget_class: str) -> tuple[pd.D
     forget_df = train_df[train_df["sentiment"] == forget_class].reset_index(drop=True)
     retain_df = train_df[train_df["sentiment"] != forget_class].reset_index(drop=True)
     return retain_df, forget_df
+
+
+def frame_with_retain_labels(frame: pd.DataFrame) -> pd.DataFrame:
+    retain_frame = frame[frame["sentiment"].isin(RETAIN_CLASSES)].copy()
+    retain_frame["label_id"] = retain_frame["sentiment"].map(RETAIN_LABEL2ID)
+    return retain_frame.reset_index(drop=True)
 
 
 def prepare_splits(config: Config) -> dict[str, pd.DataFrame]:

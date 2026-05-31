@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from sklearn.metrics import confusion_matrix, matthews_corrcoef
 
+from constants import GOLD_LABEL_TO_FULL, RETAIN_FULL_LABEL_IDS
+
 
 def multiclass_mcc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(matthews_corrcoef(y_true, y_pred))
@@ -34,6 +36,15 @@ def batch_predict_probs(
         batch_probs = model.predict_probs(batch_texts, device).detach().cpu().numpy()
         probabilities.append(batch_probs)
     return np.concatenate(probabilities, axis=0)
+
+
+def retain_probs_from_three_class(model_probs: np.ndarray) -> np.ndarray:
+    subset = model_probs[:, RETAIN_FULL_LABEL_IDS]
+    return subset / subset.sum(axis=1, keepdims=True)
+
+
+def gold_predictions_to_full(gold_predictions: np.ndarray) -> np.ndarray:
+    return np.vectorize(GOLD_LABEL_TO_FULL.get)(gold_predictions)
 
 
 def kl_divergence(probs_p: np.ndarray, probs_q: np.ndarray, eps: float = 1e-12) -> float:
@@ -80,13 +91,21 @@ def evaluate_unlearning_metrics(
     retain_eval = evaluate_split(model, retain_texts, retain_labels, device, batch_size)
     forget_eval = evaluate_split(model, forget_texts, forget_labels, device, batch_size)
 
-    retain_probs_model = batch_predict_probs(model, retain_texts, device, batch_size)
-    forget_probs_model = batch_predict_probs(model, forget_texts, device, batch_size)
+    retain_probs_model = retain_probs_from_three_class(
+        batch_predict_probs(model, retain_texts, device, batch_size)
+    )
+    forget_probs_model = retain_probs_from_three_class(
+        batch_predict_probs(model, forget_texts, device, batch_size)
+    )
     retain_probs_gold = batch_predict_probs(gold_model, retain_texts, device, batch_size)
     forget_probs_gold = batch_predict_probs(gold_model, forget_texts, device, batch_size)
 
-    retain_pred_gold = batch_predict(gold_model, retain_texts, device, batch_size)
-    forget_pred_gold = batch_predict(gold_model, forget_texts, device, batch_size)
+    retain_pred_gold = gold_predictions_to_full(
+        batch_predict(gold_model, retain_texts, device, batch_size)
+    )
+    forget_pred_gold = gold_predictions_to_full(
+        batch_predict(gold_model, forget_texts, device, batch_size)
+    )
 
     return {
         "model_retain_mcc": retain_eval["mcc"],

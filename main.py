@@ -89,20 +89,35 @@ def command_prepare_data(config) -> dict[str, pd.DataFrame]:
 
 
 def command_train_baseline(config, splits: dict[str, pd.DataFrame]) -> None:
+    from data.splits import frame_with_retain_labels
     from training.trainer import plot_all_training_curves, train_baseline_model
 
     config.paths.checkpoints_dir.mkdir(parents=True, exist_ok=True)
-    gold_model, gold_metrics = train_baseline_model(config, splits, run_name="gold", save_name="gold")
-    original_dir = config.paths.checkpoints_dir / "original"
-    if original_dir.exists():
-        shutil.rmtree(original_dir)
-    shutil.copytree(config.paths.checkpoints_dir / "gold", original_dir)
-    gold_metrics.to_csv(config.paths.output_dir / "gold_metrics.csv", index=False)
-    shutil.copy(
-        config.paths.output_dir / "gold_metrics.csv",
-        config.paths.output_dir / "original_metrics.csv",
+
+    original_model, original_metrics = train_baseline_model(
+        config,
+        splits["train"],
+        splits["valid"],
+        run_name="original",
+        save_name="original",
+        num_classes=config.model.num_classes,
     )
-    plot_all_training_curves(config, gold_metrics, gold_metrics, {})
+
+    gold_train_df = frame_with_retain_labels(splits["retain_train"])
+    gold_valid_df = frame_with_retain_labels(splits["valid"])
+    gold_model, gold_metrics = train_baseline_model(
+        config,
+        gold_train_df,
+        gold_valid_df,
+        run_name="gold",
+        save_name="gold",
+        num_classes=config.model.gold_num_classes,
+    )
+
+    original_metrics.to_csv(config.paths.output_dir / "original_metrics.csv", index=False)
+    gold_metrics.to_csv(config.paths.output_dir / "gold_metrics.csv", index=False)
+    plot_all_training_curves(config, gold_metrics, original_metrics, {})
+    print(f"original final valid_mcc={original_metrics.iloc[-1]['valid_mcc']:.4f}")
     print(f"gold final valid_mcc={gold_metrics.iloc[-1]['valid_mcc']:.4f}")
 
 
@@ -118,7 +133,7 @@ def command_unlearn(
     gold_model = QwenEmbeddingClassifier.load_pretrained(
         str(gold_dir),
         config.model.base_model_id,
-        config.model.num_classes,
+        config.model.gold_num_classes,
         config.model.mlp_hidden_dim,
         config.model.max_length,
     )
@@ -145,20 +160,27 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
     gold_model = QwenEmbeddingClassifier.load_pretrained(
         str(config.paths.checkpoints_dir / "gold"),
         config.model.base_model_id,
-        config.model.num_classes,
+        config.model.gold_num_classes,
         config.model.mlp_hidden_dim,
         config.model.max_length,
     )
 
-    for model_name in ("gold", "original"):
+    from data.splits import frame_with_retain_labels
+
+    gold_test_df = frame_with_retain_labels(splits["retain_test"])
+
+    for model_name, num_classes, test_df in (
+        ("original", config.model.num_classes, splits["test"]),
+        ("gold", config.model.gold_num_classes, gold_test_df),
+    ):
         model = QwenEmbeddingClassifier.load_pretrained(
             str(config.paths.checkpoints_dir / model_name),
             config.model.base_model_id,
-            config.model.num_classes,
+            num_classes,
             config.model.mlp_hidden_dim,
             config.model.max_length,
         )
-        test_metrics = evaluate_test_and_plot(config, model, splits, model_name)
+        test_metrics = evaluate_test_and_plot(config, model, test_df, model_name, num_classes)
         unlearning_metrics = evaluate_unlearning_metrics(
             model,
             gold_model,
@@ -172,7 +194,7 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
         row = {"method": model_name, **test_metrics, **unlearning_metrics}
         summary_rows.append(row)
 
-    gold_retain_mcc = summary_rows[0]["model_retain_mcc"]
+    gold_retain_mcc = next(row["model_retain_mcc"] for row in summary_rows if row["method"] == "gold")
     unlearn_root = config.paths.checkpoints_dir / "unlearn"
     if unlearn_root.exists():
         for method_dir in sorted(unlearn_root.iterdir()):
@@ -185,7 +207,13 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
                 config.model.mlp_hidden_dim,
                 config.model.max_length,
             )
-            test_metrics = evaluate_test_and_plot(config, model, splits, f"unlearn_{method_dir.name}")
+            test_metrics = evaluate_test_and_plot(
+                config,
+                model,
+                splits["test"],
+                f"unlearn_{method_dir.name}",
+                config.model.num_classes,
+            )
             unlearning_metrics = evaluate_unlearning_metrics(
                 model,
                 gold_model,

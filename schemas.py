@@ -21,6 +21,7 @@ class DataConfig(BaseModel):
 class ModelConfig(BaseModel):
     base_model_id: str = "Qwen/Qwen3-Embedding-0.6B"
     num_classes: int = 3
+    gold_num_classes: int = 2
     mlp_hidden_dim: int = 512
     max_length: int = 128
     embedding_dim: int = 1024

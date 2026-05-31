@@ -22,10 +22,10 @@ def _device() -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def _build_model(config: Config) -> QwenEmbeddingClassifier:
+def _build_model(config: Config, num_classes: int) -> QwenEmbeddingClassifier:
     return QwenEmbeddingClassifier(
         model_id=config.model.base_model_id,
-        num_classes=config.model.num_classes,
+        num_classes=num_classes,
         hidden_dim=config.model.mlp_hidden_dim,
         max_length=config.model.max_length,
     )
@@ -62,25 +62,27 @@ def _epoch_at_optimizer_step(global_step: int, total_optimizer_steps: int, epoch
 
 def _collect_baseline_metrics(
     model: QwenEmbeddingClassifier,
-    splits: dict[str, pd.DataFrame],
-    config: Config,
+    valid_df: pd.DataFrame,
     device: torch.device,
+    batch_size: int,
 ) -> dict[str, float]:
-    valid_texts = splits["valid"]["review"].astype(str).tolist()
-    valid_labels = splits["valid"]["label_id"].astype(int).tolist()
-    valid_eval = evaluate_split(model, valid_texts, valid_labels, device, config.train.batch_size)
+    valid_texts = valid_df["review"].astype(str).tolist()
+    valid_labels = valid_df["label_id"].astype(int).tolist()
+    valid_eval = evaluate_split(model, valid_texts, valid_labels, device, batch_size)
     return {"valid_mcc": valid_eval["mcc"]}
 
 
 def train_baseline_model(
     config: Config,
-    splits: dict[str, pd.DataFrame],
+    train_df: pd.DataFrame,
+    valid_df: pd.DataFrame,
     run_name: str,
     save_name: str,
+    num_classes: int,
 ) -> tuple[QwenEmbeddingClassifier, pd.DataFrame]:
     device = _device()
-    model = _build_model(config).to(device)
-    train_dataset = ReviewDataset(splits["train"])
+    model = _build_model(config, num_classes).to(device)
+    train_dataset = ReviewDataset(train_df)
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.train.batch_size,
@@ -117,11 +119,16 @@ def train_baseline_model(
     global_step = 0
 
     with start_run(config, run_name):
-        epoch_zero_metrics = _collect_baseline_metrics(model, splits, config, device)
+        epoch_zero_metrics = _collect_baseline_metrics(
+            model,
+            valid_df,
+            device,
+            config.train.batch_size,
+        )
         epoch_zero_metrics["epoch"] = 0.0
         metric_rows.append(epoch_zero_metrics)
         log_metrics_dict(epoch_zero_metrics, step=0)
-        print(f"epoch=0.0 valid_mcc={epoch_zero_metrics['valid_mcc']:.4f}")
+        print(f"{save_name} epoch=0.0 valid_mcc={epoch_zero_metrics['valid_mcc']:.4f}")
 
         progress = tqdm(total=total_optimizer_steps, desc=f"train {save_name}")
         optimizer.zero_grad(set_to_none=True)
@@ -146,12 +153,17 @@ def train_baseline_model(
                         total_optimizer_steps,
                         config.train.epochs,
                     )
-                    metrics = _collect_baseline_metrics(model, splits, config, device)
+                    metrics = _collect_baseline_metrics(
+                        model,
+                        valid_df,
+                        device,
+                        config.train.batch_size,
+                    )
                     metrics["epoch"] = current_epoch
                     metrics["train_loss"] = float(loss.item() * config.train.gradient_accumulation_steps)
                     metric_rows.append(metrics)
                     log_metrics_dict(metrics, step=global_step)
-                    print(f"epoch={current_epoch:.2f} valid_mcc={metrics['valid_mcc']:.4f}")
+                    print(f"{save_name} epoch={current_epoch:.2f} valid_mcc={metrics['valid_mcc']:.4f}")
 
         progress.close()
 
@@ -343,20 +355,25 @@ def run_unlearning_method(
 def evaluate_test_and_plot(
     config: Config,
     model: QwenEmbeddingClassifier,
-    splits: dict[str, pd.DataFrame],
+    test_df: pd.DataFrame,
     model_name: str,
+    num_classes: int,
 ) -> dict[str, float]:
     device = _device()
     model = model.to(device)
-    test_texts = splits["test"]["review"].astype(str).tolist()
-    test_labels = splits["test"]["label_id"].astype(int).tolist()
+    test_texts = test_df["review"].astype(str).tolist()
+    test_labels = test_df["label_id"].astype(int).tolist()
     evaluation = evaluate_split(model, test_texts, test_labels, device, config.train.batch_size)
     confusion = evaluation["labels"], evaluation["predictions"]
     figure_path = config.paths.figures_dir / f"confusion_{model_name}.png"
+    if num_classes == config.model.num_classes:
+        label_names = [ID2LABEL[index] for index in range(num_classes)]
+    else:
+        label_names = list(RETAIN_CLASSES)
     plot_confusion_matrix(
         confusion[0],
         confusion[1],
-        labels=[ID2LABEL[index] for index in range(config.model.num_classes)],
+        labels=label_names,
         title=f"Confusion matrix: {model_name}",
         save_path=figure_path,
     )

@@ -70,7 +70,6 @@ class QwenEmbeddingClassifier(nn.Module):
         self.tokenizer.save_pretrained(f"{save_dir}/encoder")
         torch.save(self.classifier.state_dict(), f"{save_dir}/classifier.pt")
 
-    @classmethod
     def load_pretrained(
         cls,
         save_dir: str,
@@ -79,8 +78,10 @@ class QwenEmbeddingClassifier(nn.Module):
         hidden_dim: int,
         max_length: int,
     ) -> "QwenEmbeddingClassifier":
+        checkpoint_dir = Path(save_dir)
+        encoder_dir = checkpoint_dir / "encoder"
         model = cls(model_id, num_classes, hidden_dim, max_length)
-        model.encoder = AutoModel.from_pretrained(f"{save_dir}/encoder")
-        model.tokenizer = AutoTokenizer.from_pretrained(f"{save_dir}/encoder", padding_side="left")
-        model.classifier.load_state_dict(torch.load(f"{save_dir}/classifier.pt", map_location="cpu"))
+        model.encoder = AutoModel.from_pretrained(str(encoder_dir), local_files_only=True)
+        model.tokenizer = AutoTokenizer.from_pretrained(str(encoder_dir), padding_side="left", local_files_only=True)
+        model.classifier.load_state_dict(torch.load(checkpoint_dir / "classifier.pt", map_location="cpu"))
         return model

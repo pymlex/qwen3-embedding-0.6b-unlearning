@@ -6,7 +6,9 @@ We compare machine unlearning methods on [Qwen/Qwen3-Embedding-0.6B](https://hug
 
 90,000 automatically labelled reviews with three balanced classes: `negative`, `neutral`, and `positive`. Each class contributes 30,000 examples. The source corpus is the RuReviews women's clothing subset from [sismetanin/rureviews](https://github.com/sismetanin/rureviews/tree/master). We use `women_clothing_accessories.csv`, a comma-separated export, for training and evaluation.
 
-We forget the **neutral** class. The retain set $D_r$ holds `positive` and `negative` training examples. The forget set $D_f$ holds all `neutral` training examples. We train the gold model on the full three-class split and freeze it as the reference for KL and agreement metrics.
+We forget the **neutral** class. The retain set $D_r$ holds `negative` and `positive` training examples. The forget set $D_f$ holds all `neutral` training examples.
+
+We train **original** on the full three-class split with a three-logit head. We train **gold** on $D_r$ only with a two-logit head over `negative` and `positive`. Gold is frozen as the reference for KL and agreement metrics during unlearning.
 
 ## Dataset
 
@@ -99,7 +101,9 @@ We train gold and original models for two epochs on the full three-class split w
 
 $$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\left[ -\log p_{\theta}(y \mid x) \right]$$
 
-We compute metrics at epoch $0$ before any gradient step and every $0.1$ epoch on validation. After training, we store gold weights as the reference model. Original weights are an identical copy used as the unlearning starting point.
+For gold, $D_{\mathrm{train}} = D_r$ and $y \in \{\mathrm{negative}, \mathrm{positive}\}$.
+
+We compute metrics at epoch $0$ before any gradient step and every $0.1$ epoch on validation. Original is validated on the full valid split. Gold is validated on retain examples only. Original weights initialise unlearning. Gold weights stay frozen as the reference model.
 
 $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{CE}}(\theta)$$
 
