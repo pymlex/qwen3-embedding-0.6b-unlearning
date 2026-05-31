@@ -33,6 +33,19 @@ def parse_args() -> argparse.Namespace:
     push_parser = subparsers.add_parser("push-hf", help="Upload checkpoints to Hugging Face Hub")
     push_parser.add_argument("--token", default=None)
 
+    push_github_parser = subparsers.add_parser(
+        "push-github",
+        help="Sync metric tables and figures to results/ and push to GitHub",
+    )
+    push_github_parser.add_argument(
+        "--message",
+        default="Update experiment metrics and figures",
+    )
+    push_github_parser.add_argument(
+        "--no-refresh-figures",
+        action="store_true",
+    )
+
     subparsers.add_parser("run-all", help="Prepare data, train baseline, unlearn, evaluate, push to HF")
 
     return parser.parse_args()
@@ -298,6 +311,16 @@ def main() -> None:
 
         token = args.token or os.environ.get("HF_TOKEN")
         push_all_models(config, token=token)
+        return
+
+    if args.command == "push-github":
+        from utils.github_results import push_results_to_github
+
+        push_results_to_github(
+            config,
+            commit_message=args.message,
+            refresh_figures=not args.no_refresh_figures,
+        )
         return
 
     if args.command == "run-all":

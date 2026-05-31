@@ -187,7 +187,11 @@ qwen3-embedding-0.6b-unlearning/
 └── utils/
     ├── mlflow_utils.py
     ├── plotting.py
-    └── hf_upload.py
+    ├── hf_upload.py
+    └── github_results.py
+results/
+├── metrics/
+└── figures/
 ```
 
 ## Colab Pro Setup and Commands
@@ -248,13 +252,19 @@ Checkpoint upload to Hugging Face:
 python main.py push-hf
 ```
 
+Metric tables and figures to GitHub repository `results/`:
+
+```bash
+python main.py push-github
+```
+
 Full workflow:
 
 ```bash
 python main.py run-all
 ```
 
-MLflow tracking: `mlruns/`. Training figures and CSV summaries: `outputs/`.
+MLflow tracking: `mlruns/`. Checkpoints and splits: `outputs/`. Published metrics and figures: `results/`.
 
 ## Results
 
