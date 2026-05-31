@@ -66,7 +66,7 @@ def analyze_dataset(
     texts = frame["review"].astype(str).tolist()
     lengths = compute_token_lengths(texts, model_id, batch_size)
     p99 = float(np.percentile(lengths, 99))
-    max_length = int(np.ceil(p99))
+    max_length = 256
     stats = {
         "num_reviews": int(len(lengths)),
         "mean_tokens": float(np.mean(lengths)),

@@ -20,7 +20,7 @@ Token lengths were computed with the [Qwen/Qwen3-Embedding-0.6B](https://hugging
 | p99 | 240 |
 | Maximum | 838 |
 
-The sequence budget `max_length = 240` equals $\lceil p_{99} \rceil$ on the full corpus. Reviews above this length are truncated during training and inference.
+The corpus $p_{99}$ token length is 240. The sequence budget is fixed at `max_length = 256`. Reviews above this length are truncated during training and inference.
 
 ![Review token length distribution](figures/token_length_distribution.png)
 
@@ -58,26 +58,46 @@ $\mathrm{MCC} \in [-1,1]$. Values near 1 indicate strong correlation between pre
 
 ## Unlearning Evaluation Metrics
 
-For each unlearned model with parameters $\theta$ and frozen gold model $\theta_g$:
+For each unlearned model with parameters $\theta$ and frozen gold model $\theta_g$.
 
-| Metric | Definition | Target |
-| --- | --- | --- |
-| `model_retain_mcc` | MCC on retain test split | Close to gold, drop undesirable |
-| `model_forget_mcc` | MCC on forget test split | Low, model forgot the forget class |
-| `gold_kl_retain` | $\mathbb{E}_{x \sim D_r^{\mathrm{test}}} \mathrm{KL}(p_{\theta_g}(\cdot \mid x) \| p_\theta(\cdot \mid x))$ | 0.0 |
-| `gold_kl_forget` | $\mathbb{E}_{x \sim D_f^{\mathrm{test}}} \mathrm{KL}(p_{\theta_g}(\cdot \mid x) \| p_\theta(\cdot \mid x))$ | 0.0 |
-| `gold_agree_retain` | $\mathbb{E}_{x \sim D_r^{\mathrm{test}}} \mathbf{1}[\arg\max p_\theta = \arg\max p_{\theta_g}]$ | Maximal |
-| `gold_agree_forget` | $\mathbb{E}_{x \sim D_f^{\mathrm{test}}} \mathbf{1}[\arg\max p_\theta = \arg\max p_{\theta_g}]$ | Context-dependent |
+| Metric | Target |
+| --- | --- |
+| `model_retain_mcc` | Close to gold on retain test split, drop undesirable |
+| `model_forget_mcc` | Low on forget test split, model forgot the forget class |
+| `gold_kl_retain` | 0.0 |
+| `gold_kl_forget` | 0.0 |
+| `gold_agree_retain` | Maximal agreement with gold on retain test split |
+| `gold_agree_forget` | Context-dependent agreement with gold on forget test split |
+
+Retain-set KL divergence against gold:
+
+$$\mathrm{gold\_kl\_retain} = \mathbb{E}_{x \sim D_r^{\mathrm{test}}} \mathrm{KL}\bigl(p_{\theta_g}(\cdot \mid x) \,\|\, p_\theta(\cdot \mid x)\bigr)$$
+
+Forget-set KL divergence against gold:
+
+$$\mathrm{gold\_kl\_forget} = \mathbb{E}_{x \sim D_f^{\mathrm{test}}} \mathrm{KL}\bigl(p_{\theta_g}(\cdot \mid x) \,\|\, p_\theta(\cdot \mid x)\bigr)$$
+
+Retain-set prediction agreement with gold:
+
+$$\mathrm{gold\_agree\_retain} = \mathbb{E}_{x \sim D_r^{\mathrm{test}}} \mathbf{1}\bigl[\arg\max p_\theta = \arg\max p_{\theta_g}\bigr]$$
+
+Forget-set prediction agreement with gold:
+
+$$\mathrm{gold\_agree\_forget} = \mathbb{E}_{x \sim D_f^{\mathrm{test}}} \mathbf{1}\bigl[\arg\max p_\theta = \arg\max p_{\theta_g}\bigr]$$
 
 Confusion matrices are saved for **gold**, **original**, and the **best unlearning** checkpoint selected by lowest `model_forget_mcc` among methods with `model_retain_mcc` at least 90% of gold retain MCC.
 
 ## Baseline Training
 
-Both gold and original models are trained for two epochs on the full three-class training split with cross-entropy loss $L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}[-\log p_\theta(y \mid x)]$.
+Both gold and original models are trained for two epochs on the full three-class training split with cross-entropy loss:
+
+$$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\bigl[-\log p_\theta(y \mid x)\bigr]$$
 
 Metrics are computed at epoch $0$ before any gradient step and every $0.5$ epoch on the validation split. After training, gold weights are stored as the reference model. Original weights are an identical copy used as the starting point for unlearning.
 
-Update rule: $\theta \leftarrow \theta - \eta \nabla_\theta L_{\mathrm{CE}}(\theta)$.
+Update rule:
+
+$$\theta \leftarrow \theta - \eta \nabla_\theta L_{\mathrm{CE}}(\theta)$$
 
 ## Unlearning Methods
 
@@ -152,10 +172,15 @@ Runtime: Google Colab Pro with NVIDIA L4 GPU, Python 3.10+.
 git clone https://github.com/pymlex/qwen3-embedding-0.6b-unlearning.git
 cd qwen3-embedding-0.6b-unlearning
 pip install -r requirements.txt
-export HF_TOKEN=<your_huggingface_token>
 ```
 
-Analyse token lengths, convert the CSV separator if needed, and set `max_length` from p99:
+Create `.env` from `.env.example`, fill `HF_TOKEN` and `GH_TOKEN`, then authenticate GitHub via browser and Hugging Face in one step:
+
+```bash
+python main.py setup
+```
+
+Analyse token lengths, convert the CSV separator if needed, and refresh the length histogram:
 
 ```bash
 python main.py analyze-dataset

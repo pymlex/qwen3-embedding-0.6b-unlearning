@@ -21,7 +21,7 @@ class ModelConfig(BaseModel):
     base_model_id: str = "Qwen/Qwen3-Embedding-0.6B"
     num_classes: int = 3
     mlp_hidden_dim: int = 512
-    max_length: int = 240
+    max_length: int = 256
     embedding_dim: int = 1024
 
 

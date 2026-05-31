@@ -13,6 +13,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Qwen3-Embedding machine unlearning pipeline")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    subparsers.add_parser("setup", help="Create .env, GitHub browser login, Hugging Face login")
+
     subparsers.add_parser("analyze-dataset", help="Convert CSV separator, compute p99 token length, plot histogram")
 
     subparsers.add_parser("prepare-data", help="Create train, valid, test and retain or forget splits")
@@ -29,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     subparsers.add_parser("evaluate", help="Evaluate all checkpoints and build confusion matrices")
 
     push_parser = subparsers.add_parser("push-hf", help="Upload checkpoints to Hugging Face Hub")
-    push_parser.add_argument("--token", default=os.environ.get("HF_TOKEN"))
+    push_parser.add_argument("--token", default=None)
 
     subparsers.add_parser("run-all", help="Prepare data, train baseline, unlearn, evaluate, push to HF")
 
@@ -214,11 +216,21 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 def main() -> None:
     from schemas import Config
+    from utils.env_utils import ensure_env_file, load_env
+
+    ensure_env_file()
+    load_env()
 
     args = parse_args()
     config = Config()
     config.apply_token_stats()
     config.paths.output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.command == "setup":
+        from utils.setup_auth import run_setup
+
+        run_setup()
+        return
 
     if args.command == "analyze-dataset":
         command_analyze_dataset(config)
@@ -245,7 +257,8 @@ def main() -> None:
     if args.command == "push-hf":
         from utils.hf_upload import push_all_models
 
-        push_all_models(config, token=args.token)
+        token = args.token or os.environ.get("HF_TOKEN")
+        push_all_models(config, token=token)
         return
 
     if args.command == "run-all":
