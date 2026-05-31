@@ -1,0 +1,1 @@
+# qwen3-embedding-0.6b-unlearning
