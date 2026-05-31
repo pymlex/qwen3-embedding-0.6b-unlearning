@@ -287,20 +287,6 @@ Removing neutral from training and evaluation collapses the task to binary senti
 
 ### Baseline validation MCC
 
-| Epoch | Gold valid MCC | Original valid MCC |
-| --- | --- | --- |
-| 0.0 | $-0.0862$ | $-0.0335$ |
-| 0.1 | $0.8640$ | $0.5949$ |
-| 0.2 | $0.8205$ | $0.6024$ |
-| 0.3 | $0.8785$ | $0.6289$ |
-| 0.4 | $0.8872$ | $0.6503$ |
-| 0.5 | $0.9031$ | $0.6456$ |
-| 0.6 | $0.8990$ | $0.6545$ |
-| 0.7 | $0.8980$ | $0.6557$ |
-| 0.8 | $0.9011$ | $0.6648$ |
-| 0.9 | $0.8981$ | $0.6570$ |
-| 1.0 | $0.9041$ | $0.6564$ |
-
 Gold converges quickly on retain validation. Original improves through epoch $0.4$ and then plateaus near $0.65$–$0.66$, consistent with the neutral-class ceiling above.
 
 #### Baseline validation MCC over training
@@ -364,35 +350,19 @@ Original confuses neutral with both polar classes. Unlearned models route former
 
 ![Retain MCC for retain_ft during unlearning](results/figures/retain_ft_retain_mcc.png)
 
-#### Retain fine-tuning — forget MCC during unlearning
-
-![Forget MCC for retain_ft during unlearning](results/figures/retain_ft_forget_mcc.png)
-
 #### DPO-like — retain MCC during unlearning
 
 ![Retain MCC for dpo_like during unlearning](results/figures/dpo_like_retain_mcc.png)
-
-#### DPO-like — forget MCC during unlearning
-
-![Forget MCC for dpo_like during unlearning](results/figures/dpo_like_forget_mcc.png)
 
 #### RMU — retain MCC during unlearning
 
 ![Retain MCC for rmu during unlearning](results/figures/rmu_retain_mcc.png)
 
-#### RMU — forget MCC during unlearning
-
-![Forget MCC for rmu during unlearning](results/figures/rmu_forget_mcc.png)
-
 #### Random target — retain MCC during unlearning
 
 ![Retain MCC for random_target during unlearning](results/figures/random_target_retain_mcc.png)
 
-#### Random target — forget MCC during unlearning
-
-![Forget MCC for random_target during unlearning](results/figures/random_target_forget_mcc.png)
-
-Retain MCC rises within the first $0.3$ epoch for retain_ft, random_target, and RMU. DPO-like keeps retain MCC near the original level and never reaches the gold retain gate. Forget MCC curves stay at zero until final evaluation for methods that log degenerate values during training, then collapse on the forget test split after one full unlearning epoch for the three qualifying methods.
+Retain MCC rises within the first $0.3$ epoch for retain_ft, random_target, and RMU. DPO-like keeps retain MCC near the original level and never reaches the gold retain gate.
 
 ## Hugging Face Checkpoints
 
