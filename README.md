@@ -1,16 +1,16 @@
 # Qwen3-Embedding-0.6B Machine Unlearning for Russian Sentiment Classification
 
-Comparative study of machine unlearning methods applied to [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) fine-tuned for three-class sentiment classification on Russian product reviews about women's clothing. The pipeline trains reference **gold** and **original** models, applies four unlearning objectives on a designated forget set, logs experiments with MLflow, uploads checkpoints to [pymlex/qwen3-embedding-0.6b-unlearning](https://huggingface.co/pymlex/qwen3-embedding-0.6b-unlearning), and reports multiclass Matthews Correlation Coefficient across retain and forget partitions.
+We compare machine unlearning methods on [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) fine-tuned for three-class sentiment classification on Russian product reviews about women's clothing. We train **gold** and **original** reference models, apply four unlearning objectives on a designated forget set, log experiments with MLflow, upload checkpoints to [pymlex/qwen3-embedding-0.6b-unlearning](https://huggingface.co/pymlex/qwen3-embedding-0.6b-unlearning), and report multiclass Matthews Correlation Coefficient on retain and forget partitions.
 
 ## Overview
 
-The dataset contains 90,000 automatically labelled reviews with three balanced classes: `negative`, `neutral`, and `positive`. Each class contributes 30,000 examples. The source corpus is the RuReviews women's clothing subset described in [sismetanin/rureviews](https://github.com/sismetanin/rureviews/tree/master). The project file `women_clothing_accessories.csv` is a comma-separated local export used for training and evaluation.
+90,000 automatically labelled reviews with three balanced classes: `negative`, `neutral`, and `positive`. Each class contributes 30,000 examples. The source corpus is the RuReviews women's clothing subset from [sismetanin/rureviews](https://github.com/sismetanin/rureviews/tree/master). We use `women_clothing_accessories.csv`, a comma-separated export, for training and evaluation.
 
-Machine unlearning targets the **neutral** class. The retain set $D_r$ contains `positive` and `negative` training examples. The forget set $D_f$ contains all `neutral` training examples. The gold model is trained on the full three-class training split and kept frozen as the reference distribution for KL and agreement metrics.
+We forget the **neutral** class. The retain set $D_r$ holds `positive` and `negative` training examples. The forget set $D_f$ holds all `neutral` training examples. We train the gold model on the full three-class split and freeze it as the reference for KL and agreement metrics.
 
 ## Dataset
 
-Token lengths were computed with the [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) tokenizer over all 90,000 reviews without truncation.
+We measure token lengths with the [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) tokenizer over all 90,000 reviews without truncation.
 
 | Statistic | Tokens |
 | --- | --- |
@@ -20,11 +20,11 @@ Token lengths were computed with the [Qwen/Qwen3-Embedding-0.6B](https://hugging
 | p99 | 240 |
 | Maximum | 838 |
 
-The corpus $p_{99}$ token length is 240. The sequence budget is fixed at `max_length = 256`. Reviews above this length are truncated during training and inference.
+Corpus $p_{99}$ token length is 240. We fix the sequence budget at `max_length = 256`. Reviews longer than this are truncated in training and inference.
 
 ![Review token length distribution](figures/token_length_distribution.png)
 
-Data partitioning uses 1,000 test and 1,000 validation examples per class. All remaining examples form the training split.
+We hold out 1,000 test and 1,000 validation examples per class. All remaining examples go to train.
 
 | Split | Size per class | Total | Role |
 | --- | --- | --- | --- |
@@ -32,7 +32,7 @@ Data partitioning uses 1,000 test and 1,000 validation examples per class. All r
 | Valid | 1,000 | 3,000 | Baseline validation MCC every 0.5 epoch |
 | Test | 1,000 | 3,000 | Final evaluation and confusion matrices |
 
-After the class split, retain training contains 56,000 reviews and forget training contains 28,000 neutral reviews.
+After the class split, retain training has 56,000 reviews and forget training has 28,000 neutral reviews.
 
 ## Model Architecture
 
@@ -46,17 +46,17 @@ flowchart TB
     H --> L[logits over negative, neutral, positive]
 ```
 
-Let $x$ denote a review, $h_{\phi}(x) \in \mathbb{R}^{1024}$ the pooled embedding from the encoder with parameters $\phi$, and $g_{\psi}$ the MLP head with parameters $\psi$. The classifier logits are
+Let $x$ denote a review, $h_{\phi}(x) \in \mathbb{R}^{1024}$ the pooled embedding from the encoder with parameters $\phi$, and $g_{\psi}$ the MLP head with parameters $\psi$. Classifier logits:
 
-$$f_{\theta}(x) = g_{\psi}\bigl(h_{\phi}(x)\bigr), \qquad \theta = (\phi, \psi).$$
+$$f_{\theta}(x) = g_{\psi}(h_{\phi}(x)), \qquad \theta = (\phi, \psi).$$
 
 Class probabilities:
 
-$$p_{\theta}(y \mid x) = \mathrm{softmax}\bigl(f_{\theta}(x)\bigr)_{y}.$$
+$$p_{\theta}(y \mid x) = \mathrm{softmax}(f_{\theta}(x))_{y}.$$
 
 ## Classification Metric
 
-All classification quality numbers use the **multiclass Matthews Correlation Coefficient**. For confusion matrix $C \in \mathbb{N}^{K \times K}$ with $K=3$, define row sums $t_k = \sum_j C_{kj}$, column sums $p_k = \sum_i C_{ik}$, and total $n = \sum_{i,j} C_{ij}$. The multiclass MCC is
+All classification scores use the **multiclass Matthews Correlation Coefficient**. For confusion matrix $C \in \mathbb{N}^{K \times K}$ with $K=3$, row sums $t_k = \sum_j C_{kj}$, column sums $p_k = \sum_i C_{ik}$, and total $n = \sum_{i,j} C_{ij}$:
 
 $$\mathrm{MCC} = \frac{n \sum_k C_{kk} - \sum_k t_k p_k}{\sqrt{\left(n^2 - \sum_k t_k^2\right)\left(n^2 - \sum_k p_k^2\right)}}.$$
 
@@ -64,7 +64,7 @@ $\mathrm{MCC} \in [-1,1]$. Values near 1 indicate strong correlation between pre
 
 ## Unlearning Evaluation Metrics
 
-For each unlearned model with parameters $\theta$ and frozen gold model $\theta_g$.
+For each unlearned model with parameters $\theta$ and frozen gold model $\theta_g$:
 
 | Metric | Target |
 | --- | --- |
@@ -75,31 +75,31 @@ For each unlearned model with parameters $\theta$ and frozen gold model $\theta_
 | `gold_agree_retain` | Maximal agreement with gold on retain test split |
 | `gold_agree_forget` | Context-dependent agreement with gold on forget test split |
 
-Retain-set KL divergence against gold:
+`gold_kl_retain`:
 
-$$\text{gold\_kl\_retain} = \mathbb{E}_{x \sim {D_r}^{\text{test}}} \operatorname{KL}\!\left(p_{\theta_g}(\cdot \mid x) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
+$$\mathbb{E}_{x \sim D_{r,\mathrm{test}}} \mathrm{KL}\left( p_{\theta_g}(\cdot \mid x) \Vert p_{\theta}(\cdot \mid x) \right)$$
 
-Forget-set KL divergence against gold:
+`gold_kl_forget`:
 
-$$\text{gold\_kl\_forget} = \mathbb{E}_{x \sim {D_f}^{\text{test}}} \operatorname{KL}\!\left(p_{\theta_g}(\cdot \mid x) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
+$$\mathbb{E}_{x \sim D_{f,\mathrm{test}}} \mathrm{KL}\left( p_{\theta_g}(\cdot \mid x) \Vert p_{\theta}(\cdot \mid x) \right)$$
 
-Retain-set prediction agreement with gold:
+`gold_agree_retain`:
 
-$$\text{gold\_agree\_retain} = \mathbb{E}_{x \sim {D_r}^{\text{test}}} \mathbf{1}\!\left[\arg\max_{y} p_{\theta}(y \mid x) = \arg\max_{y} p_{\theta_g}(y \mid x)\right]$$
+$$\mathbb{E}_{x \sim D_{r,\mathrm{test}}} \mathbb{I}\left( \arg\max_{y} p_{\theta}(y \mid x) = \arg\max_{y} p_{\theta_g}(y \mid x) \right)$$
 
-Forget-set prediction agreement with gold:
+`gold_agree_forget`:
 
-$$\text{gold\_agree\_forget} = \mathbb{E}_{x \sim {D_f}^{\text{test}}} \mathbf{1}\!\left[\arg\max_{y} p_{\theta}(y \mid x) = \arg\max_{y} p_{\theta_g}(y \mid x)\right]$$
+$$\mathbb{E}_{x \sim D_{f,\mathrm{test}}} \mathbb{I}\left( \arg\max_{y} p_{\theta}(y \mid x) = \arg\max_{y} p_{\theta_g}(y \mid x) \right)$$
 
-Confusion matrices are saved for **gold**, **original**, and the **best unlearning** checkpoint selected by lowest `model_forget_mcc` among methods with `model_retain_mcc` at least 90% of gold retain MCC.
+We save confusion matrices for **gold**, **original**, and the best unlearning checkpoint with lowest `model_forget_mcc` among methods whose `model_retain_mcc` is at least 90% of gold retain MCC.
 
 ## Baseline Training
 
-Both gold and original models are trained for two epochs on the full three-class training split with cross-entropy loss:
+We train gold and original models for two epochs on the full three-class split with cross-entropy loss:
 
-$$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\bigl[-\log p_{\theta}(y \mid x)\bigr]$$
+$$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\left[ -\log p_{\theta}(y \mid x) \right]$$
 
-Metrics are computed at epoch $0$ before any gradient step and every $0.5$ epoch on the validation split. After training, gold weights are stored as the reference model. Original weights are an identical copy used as the starting point for unlearning.
+We compute metrics at epoch $0$ before any gradient step and every $0.5$ epoch on validation. After training, we store gold weights as the reference model. Original weights are an identical copy used as the unlearning starting point.
 
 $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{CE}}(\theta)$$
 
@@ -109,11 +109,11 @@ Cross-entropy on a labelled example:
 
 $$\ell_{\mathrm{CE}}(x,y;\theta) = -\log p_{\theta}(y \mid x).$$
 
-The original checkpoint is denoted by $\theta_0$.
+The original checkpoint is $\theta_0$.
 
 ### Retain Fine-Tuning
 
-$$L_{\mathrm{retain}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\bigl[\ell_{\mathrm{CE}}(x,y;\theta)\bigr]$$
+$$L_{\mathrm{retain}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\left[ \ell_{\mathrm{CE}}(x,y;\theta) \right]$$
 
 $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{retain}}(\theta)$$
 
@@ -121,13 +121,13 @@ $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{retain}}(\theta)$$
 
 Score for labelled example $(x,y)$:
 
-$$s_{\theta}(x,y) = \beta\left(\log p_{\theta}(y \mid x) - \log p_{\theta_0}(y \mid x)\right)$$
+$$s_{\theta}(x,y) = \beta\left( \log p_{\theta}(y \mid x) - \log p_{\theta_0}(y \mid x) \right)$$
 
 For retain pair $(x_r, y_r)$ and forget pair $(x_f, y_f)$:
 
 $$s_r = s_{\theta}(x_r, y_r), \qquad s_f = s_{\theta}(x_f, y_f)$$
 
-$$L_{\mathrm{DPO}}(\theta) = -\mathbb{E}\bigl[\log \sigma(s_r - s_f)\bigr]$$
+$$L_{\mathrm{DPO}}(\theta) = -\mathbb{E}\left[ \log \sigma(s_r - s_f) \right]$$
 
 $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{DPO}}(\theta)$$
 
@@ -139,9 +139,9 @@ Uniform refusal distribution over $K=3$ classes:
 
 $$u(y) = \frac{1}{K}$$
 
-$$L_{\mathrm{retain}}^{\mathrm{RMU}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\bigl[\ell_{\mathrm{CE}}(x,y;\theta)\bigr] + 0.5\,\mathbb{E}_{x\sim D_r}\operatorname{KL}\!\left(p_{\theta_0}(\cdot \mid x) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
+$$L_{\mathrm{retain}}^{\mathrm{RMU}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\left[ \ell_{\mathrm{CE}}(x,y;\theta) \right] + 0.5 \, \mathbb{E}_{x\sim D_r} \mathrm{KL}\left( p_{\theta_0}(\cdot \mid x) \Vert p_{\theta}(\cdot \mid x) \right)$$
 
-$$L_{\mathrm{refusal}}(\theta) = \mathbb{E}_{x\sim D_f}\operatorname{KL}\!\left(u(\cdot) \,\middle\|\, p_{\theta}(\cdot \mid x)\right)$$
+$$L_{\mathrm{refusal}}(\theta) = \mathbb{E}_{x\sim D_f} \mathrm{KL}\left( u(\cdot) \Vert p_{\theta}(\cdot \mid x) \right)$$
 
 $$L_{\mathrm{RMU}}(\theta) = L_{\mathrm{retain}}^{\mathrm{RMU}}(\theta) + L_{\mathrm{refusal}}(\theta)$$
 
@@ -149,9 +149,9 @@ $$\theta \leftarrow \theta - \eta \nabla_{\theta} L_{\mathrm{RMU}}(\theta)$$
 
 ### Random Target
 
-Sample $\tilde{y} \sim \mathrm{Uniform}(Y_{\mathrm{retain}})$ where $Y_{\mathrm{retain}} = \{\text{positive}, \text{negative}\}$.
+We sample $\tilde{y} \sim \mathrm{Uniform}(Y_{\mathrm{retain}})$ where $Y_{\mathrm{retain}} = \{\mathrm{positive}, \mathrm{negative}\}$.
 
-$$L_{\mathrm{random}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\bigl[\ell_{\mathrm{CE}}(x,y;\theta)\bigr] + \gamma\,\mathbb{E}_{x\sim D_f,\, \tilde{y} \sim \mathrm{Uniform}(Y_{\mathrm{retain}})}\bigl[\ell_{\mathrm{CE}}(x,\tilde{y};\theta)\bigr]$$
+$$L_{\mathrm{random}}(\theta) = \mathbb{E}_{(x,y)\sim D_r}\left[ \ell_{\mathrm{CE}}(x,y;\theta) \right] + \gamma \, \mathbb{E}_{x\sim D_f,\, \tilde{y} \sim \mathrm{Uniform}(Y_{\mathrm{retain}})}\left[ \ell_{\mathrm{CE}}(x,\tilde{y};\theta) \right]$$
 
 with $\gamma = 0.7$.
 
@@ -196,65 +196,65 @@ cd qwen3-embedding-0.6b-unlearning
 pip install -r requirements.txt
 ```
 
-Create `.env` from `.env.example`, fill `HF_TOKEN` and `GH_TOKEN`, then authenticate GitHub via browser and Hugging Face in one step:
+We create `.env` from `.env.example`, fill `HF_TOKEN` and `GH_TOKEN`, then authenticate GitHub via browser and Hugging Face:
 
 ```bash
 python main.py setup
 ```
 
-Analyse token lengths, convert the CSV separator if needed, and refresh the length histogram:
+Token length analysis, CSV separator conversion, histogram refresh:
 
 ```bash
 python main.py analyze-dataset
 ```
 
-Prepare splits:
+Train, valid, test and retain or forget splits:
 
 ```bash
 python main.py prepare-data
 ```
 
-Train gold and original models for two epochs with validation MCC at epoch 0, 0.5, 1.0, 1.5, 2.0:
+Gold and original models, two epochs, validation MCC at epoch 0, 0.5, 1.0, 1.5, 2.0:
 
 ```bash
 python main.py train-baseline
 ```
 
-Run all unlearning methods:
+All unlearning methods:
 
 ```bash
 python main.py unlearn --method all
 ```
 
-Run a single method:
+Single unlearning method:
 
 ```bash
 python main.py unlearn --method rmu
 ```
 
-Evaluate test MCC, unlearning metrics, and confusion matrices:
+Test MCC, unlearning metrics, confusion matrices:
 
 ```bash
 python main.py evaluate
 ```
 
-Upload checkpoints to Hugging Face:
+Checkpoint upload to Hugging Face:
 
 ```bash
 python main.py push-hf
 ```
 
-Full pipeline in one command:
+Full workflow:
 
 ```bash
 python main.py run-all
 ```
 
-MLflow tracking directory: `mlruns/`. Training figures and CSV summaries: `outputs/`.
+MLflow tracking: `mlruns/`. Training figures and CSV summaries: `outputs/`.
 
 ## Results
 
-Tables below are populated after the full Colab training run. Re-run `python main.py evaluate` and copy values from `outputs/final_evaluation.csv`.
+We fill the tables below after the Colab training run. Copy values from `outputs/final_evaluation.csv` after `python main.py evaluate`.
 
 ### Baseline validation MCC
 
@@ -279,7 +279,7 @@ Tables below are populated after the full Colab training run. Re-run `python mai
 
 ### Confusion matrices
 
-After evaluation, figures are written to `outputs/figures/`:
+We write figures to `outputs/figures/`:
 
 - `confusion_gold.png`
 - `confusion_original.png`
@@ -304,7 +304,7 @@ Repository: [pymlex/qwen3-embedding-0.6b-unlearning](https://huggingface.co/pyml
 | `unlearn/rmu/` | RMU unlearning checkpoint |
 | `unlearn/random_target/` | Random target unlearning checkpoint |
 
-Each folder contains `encoder/` Hugging Face weights and `classifier.pt` MLP head state.
+Each checkpoint folder has `encoder/` Hugging Face weights and `classifier.pt` MLP head state.
 
 ## Citation
 
