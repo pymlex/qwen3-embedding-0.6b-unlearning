@@ -149,6 +149,7 @@ def command_unlearn(
 def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
     import torch
 
+    from constants import LABEL2ID
     from metrics.evaluation import evaluate_unlearning_metrics
     from models.classifier import QwenEmbeddingClassifier
     from training.trainer import evaluate_test_and_plot, select_best_unlearning_method
@@ -156,6 +157,7 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
     config.paths.figures_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     summary_rows = []
+    forget_class_id = LABEL2ID[config.data.forget_class]
 
     gold_model = QwenEmbeddingClassifier.load_pretrained(
         str(config.paths.checkpoints_dir / "gold"),
@@ -190,6 +192,8 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
             splits["forget_test"]["label_id"].astype(int).tolist(),
             device,
             config.train.batch_size,
+            forget_class_id,
+            config.model.num_classes,
         )
         row = {"method": model_name, **test_metrics, **unlearning_metrics}
         summary_rows.append(row)
@@ -223,6 +227,8 @@ def command_evaluate(config, splits: dict[str, pd.DataFrame]) -> pd.DataFrame:
                 splits["forget_test"]["label_id"].astype(int).tolist(),
                 device,
                 config.train.batch_size,
+                forget_class_id,
+                config.model.num_classes,
             )
             summary_rows.append({"method": method_dir.name, **test_metrics, **unlearning_metrics})
 

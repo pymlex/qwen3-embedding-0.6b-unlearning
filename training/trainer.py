@@ -202,6 +202,8 @@ def run_unlearning_method(
     gold_model = gold_model.to(device)
     gold_model.eval()
 
+    forget_class_id = LABEL2ID[config.data.forget_class]
+
     pair_dataset = PairDataset(splits["retain_train"], splits["forget_train"])
     pair_loader = DataLoader(
         pair_dataset,
@@ -246,6 +248,8 @@ def run_unlearning_method(
             forget_test_labels,
             device,
             config.train.batch_size,
+            forget_class_id,
+            config.model.num_classes,
         )
         epoch_zero["epoch"] = 0.0
         metric_rows.append(epoch_zero)
@@ -331,6 +335,8 @@ def run_unlearning_method(
                         forget_test_labels,
                         device,
                         config.train.batch_size,
+                        forget_class_id,
+                        config.model.num_classes,
                     )
                     metrics["epoch"] = current_epoch
                     metrics["train_loss"] = float(loss.item() * config.train.gradient_accumulation_steps)

@@ -58,6 +58,31 @@ def agreement_rate(y_pred_a: np.ndarray, y_pred_b: np.ndarray) -> float:
     return float(np.mean(y_pred_a == y_pred_b))
 
 
+def forget_class_mcc(
+    y_pred: np.ndarray,
+    forget_class_id: int,
+    num_classes: int,
+) -> float:
+    """MCC on forget split where all ground-truth labels are the forget class.
+
+    Multiclass MCC is degenerate when y_true contains a single class. We compare
+    the forget-class prediction rate to random guessing at 1 / K.
+    """
+    prediction_rate = float(np.mean(y_pred == forget_class_id))
+    random_rate = 1.0 / num_classes
+    if prediction_rate >= 1.0:
+        return 1.0
+    if prediction_rate <= 0.0:
+        return -1.0
+    if abs(prediction_rate - random_rate) < 1e-12:
+        return 0.0
+    numerator = prediction_rate - random_rate
+    denominator = np.sqrt(
+        prediction_rate * (1.0 - prediction_rate) * random_rate * (1.0 - random_rate)
+    )
+    return float(numerator / denominator)
+
+
 def compute_confusion(y_true: np.ndarray, y_pred: np.ndarray, num_classes: int) -> np.ndarray:
     return confusion_matrix(y_true, y_pred, labels=list(range(num_classes)))
 
@@ -87,9 +112,12 @@ def evaluate_unlearning_metrics(
     forget_labels: list[int],
     device: torch.device,
     batch_size: int,
+    forget_class_id: int,
+    num_classes: int,
 ) -> dict[str, float]:
     retain_eval = evaluate_split(model, retain_texts, retain_labels, device, batch_size)
-    forget_eval = evaluate_split(model, forget_texts, forget_labels, device, batch_size)
+    forget_preds = batch_predict(model, forget_texts, device, batch_size)
+    forget_mcc = forget_class_mcc(forget_preds, forget_class_id, num_classes)
 
     retain_probs_model = retain_probs_from_three_class(
         batch_predict_probs(model, retain_texts, device, batch_size)
@@ -109,9 +137,9 @@ def evaluate_unlearning_metrics(
 
     return {
         "model_retain_mcc": retain_eval["mcc"],
-        "model_forget_mcc": forget_eval["mcc"],
+        "model_forget_mcc": forget_mcc,
         "gold_kl_retain": kl_divergence(retain_probs_gold, retain_probs_model),
         "gold_kl_forget": kl_divergence(forget_probs_gold, forget_probs_model),
         "gold_agree_retain": agreement_rate(retain_eval["predictions"], retain_pred_gold),
-        "gold_agree_forget": agreement_rate(forget_eval["predictions"], forget_pred_gold),
+        "gold_agree_forget": agreement_rate(forget_preds, forget_pred_gold),
     }
