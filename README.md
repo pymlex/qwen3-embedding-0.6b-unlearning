@@ -1,6 +1,6 @@
 # Qwen3-Embedding-0.6B Machine Unlearning for Russian Sentiment Classification
 
-We compare machine unlearning methods on [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) fine-tuned for three-class sentiment classification on Russian product reviews about women's clothing. We train **gold** and **original** reference models, apply four unlearning objectives on a designated forget set, log experiments with MLflow, upload checkpoints to [pymlex/qwen3-embedding-0.6b-unlearning](https://huggingface.co/pymlex/qwen3-embedding-0.6b-unlearning), and report multiclass Matthews Correlation Coefficient on retain and forget partitions.
+We compare machine unlearning methods on [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) fine-tuned for three-class sentiment classification on Russian product reviews about women's clothing. We train **original** on three classes and **gold** on two retain classes, apply four unlearning objectives on a designated forget set, log experiments with MLflow, upload checkpoints to [pymlex/qwen3-embedding-0.6b-unlearning](https://huggingface.co/pymlex/qwen3-embedding-0.6b-unlearning), and report multiclass Matthews Correlation Coefficient on retain and forget partitions.
 
 ## Overview
 
@@ -97,7 +97,7 @@ We save confusion matrices for **gold**, **original**, and the best unlearning c
 
 ## Baseline Training
 
-We train gold and original models for two epochs on the full three-class split with cross-entropy loss:
+We train **original** for one epoch on the full three-class split and **gold** for one epoch on retain data only. Both use cross-entropy loss:
 
 $$L_{\mathrm{CE}}(\theta) = \mathbb{E}_{(x,y)\sim D_{\mathrm{train}}}\left[ -\log p_{\theta}(y \mid x) \right]$$
 
