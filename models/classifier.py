@@ -70,6 +70,7 @@ class QwenEmbeddingClassifier(nn.Module):
         self.tokenizer.save_pretrained(f"{save_dir}/encoder")
         torch.save(self.classifier.state_dict(), f"{save_dir}/classifier.pt")
 
+    @classmethod
     def load_pretrained(
         cls,
         save_dir: str,
